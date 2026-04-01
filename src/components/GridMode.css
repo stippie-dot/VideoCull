@@ -1,0 +1,14 @@
+.grid-mode {
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.grid-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}

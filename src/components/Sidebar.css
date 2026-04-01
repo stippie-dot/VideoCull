@@ -1,0 +1,284 @@
+.sidebar {
+  width: 280px;
+  min-width: 280px;
+  height: 100vh;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Header ── */
+.sidebar-header {
+  padding: 20px 18px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+.sidebar-logo svg {
+  color: var(--accent);
+}
+
+/* ── Sections ── */
+.sidebar-section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+/* ── Directory Path ── */
+.directory-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.directory-info svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.directory-path {
+  word-break: break-all;
+}
+
+/* ── Checkbox ── */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* ── Stats Grid ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.stat-item {
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  text-align: center;
+}
+.stat-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.stat-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.stat-keep .stat-value { color: var(--color-keep); }
+.stat-delete .stat-value { color: var(--color-delete); }
+.stat-pending .stat-value { color: var(--text-secondary); }
+
+.delete-size-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-delete);
+}
+
+/* ── Filter Pills ── */
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  transition: var(--transition);
+  cursor: pointer;
+}
+.pill:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.pill-active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.pill-active.pill-keep {
+  background: var(--color-keep-dim);
+  color: var(--color-keep);
+}
+.pill-active.pill-delete {
+  background: var(--color-delete-dim);
+  color: var(--color-delete);
+}
+
+/* ── Select ── */
+.sidebar-select {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.sidebar-select:hover {
+  border-color: var(--border-hover);
+}
+
+/* ── Sort Row ── */
+.sort-row {
+  display: flex;
+  gap: 6px;
+}
+.sort-row .sidebar-select {
+  flex: 1;
+}
+
+/* ── Progress ── */
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.progress-detail {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.progress-bar-track {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 300ms ease;
+}
+
+/* ── Actions (bottom) ── */
+.sidebar-actions {
+  margin-top: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.btn-icon {
+  padding: 7px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+.btn-icon:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.btn-accent {
+  background: var(--accent);
+  color: white;
+  width: 100%;
+}
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+.btn-danger {
+  background: var(--color-delete-dim);
+  color: var(--color-delete);
+  width: 100%;
+  border: 1px solid rgba(255, 92, 108, 0.2);
+}
+.btn-danger:hover {
+  background: rgba(255, 92, 108, 0.2);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Spin animation ── */
+.spin {
+  animation: spin 1s linear infinite;
+}

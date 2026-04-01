@@ -1,0 +1,150 @@
+.video-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), transform 150ms ease;
+}
+.video-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Status Borders */
+.card-keep {
+  border-color: var(--color-keep) !important;
+  box-shadow: 0 0 0 1px var(--color-keep-dim), var(--shadow-sm);
+}
+.card-delete {
+  border-color: var(--color-delete) !important;
+  box-shadow: 0 0 0 1px var(--color-delete-dim), var(--shadow-sm);
+  opacity: 0.7;
+}
+.card-delete:hover {
+  opacity: 1;
+}
+
+/* ── Thumbnail Area ── */
+.card-thumb-area {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-status-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  z-index: 2;
+}
+.badge-keep {
+  background: var(--color-keep);
+  color: #fff;
+}
+.badge-delete {
+  background: var(--color-delete);
+  color: #fff;
+}
+
+/* ── Hover Overlay ── */
+.card-hover-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity var(--transition);
+  z-index: 3;
+}
+.card-thumb-area:hover .card-hover-overlay {
+  opacity: 1;
+}
+
+.card-play-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  backdrop-filter: blur(4px);
+  transition: var(--transition);
+}
+.card-play-btn:hover {
+  background: var(--accent);
+  transform: scale(1.1);
+}
+
+/* ── Info ── */
+.card-info {
+  padding: 10px 12px 4px;
+}
+
+.card-filename {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 3px;
+}
+.meta-sep {
+  opacity: 0.4;
+}
+
+/* ── Action Buttons ── */
+.card-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px 10px;
+}
+
+.card-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+  transition: var(--transition);
+}
+.card-btn:hover {
+  background: var(--bg-surface-active);
+  color: var(--text-primary);
+}
+.card-btn-keep.active {
+  background: var(--color-keep-dim);
+  color: var(--color-keep);
+}
+.card-btn-delete.active {
+  background: var(--color-delete-dim);
+  color: var(--color-delete);
+}
