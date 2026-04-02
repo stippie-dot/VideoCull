@@ -5,6 +5,7 @@ import GridMode from './components/GridMode';
 import ReviewMode from './components/ReviewMode';
 import EmptyState from './components/EmptyState';
 import PreviewModal from './components/PreviewModal';
+import SettingsModal from './components/SettingsModal';
 import './App.css';
 
 export default function App() {
@@ -17,7 +18,7 @@ export default function App() {
   const setScanProgress = useStore((s) => s.setScanProgress);
   const setIsGenerating = useStore((s) => s.setIsGenerating);
   const setGenProgress = useStore((s) => s.setGenProgress);
-  const updateVideoThumbnails = useStore((s) => s.updateVideoThumbnails);
+  const updateVideoThumbnailsBatch = useStore((s) => s.updateVideoThumbnailsBatch);
   const includeSubfolders = useStore((s) => s.includeSubfolders);
 
   // Scan directory when selected
@@ -48,6 +49,8 @@ export default function App() {
 
   // Subscribe to IPC events
   useEffect(() => {
+    useStore.getState().loadSettings();
+
     if (!window.electronAPI) return;
 
     const unsub1 = window.electronAPI.onScanProgress((progress) => {
@@ -58,13 +61,17 @@ export default function App() {
       setGenProgress(progress);
     });
 
-    const unsub3 = window.electronAPI.onThumbReady(({ videoId, thumbnails, durationSecs, metadataDate }) => {
-      updateVideoThumbnails(videoId, thumbnails, durationSecs, metadataDate);
+    const unsub3 = window.electronAPI.onThumbReadyBatch((batch) => {
+      updateVideoThumbnailsBatch(batch);
     });
 
     const unsub4 = window.electronAPI.onMenuAction(async (action) => {
       const state = useStore.getState();
       switch (action) {
+        case 'open-settings': {
+          state.setIsSettingsModalOpen(true);
+          break;
+        }
         case 'open-directory': {
           const dir = await window.electronAPI.selectDirectory();
           if (dir) state.setDirectory(dir);
@@ -129,7 +136,7 @@ export default function App() {
       unsub3();
       unsub4();
     };
-  }, [setScanProgress, setGenProgress, updateVideoThumbnails, handleScan]);
+  }, [setScanProgress, setGenProgress, updateVideoThumbnailsBatch, handleScan]);
 
   useEffect(() => {
     if (directory) {
@@ -139,7 +146,10 @@ export default function App() {
 
   return (
     <div className="app-layout">
-      <Sidebar onRescan={() => directory && handleScan(directory)} />
+      <SettingsModal />
+      <PreviewModal />
+
+      {directory && <Sidebar onRescan={() => directory && handleScan(directory)} />}
 
       <main className="app-main">
         {!directory && !isScanning && videos.length === 0 && <EmptyState />}
@@ -155,6 +165,7 @@ export default function App() {
       </main>
 
       <PreviewModal />
+      <SettingsModal />
     </div>
   );
 }

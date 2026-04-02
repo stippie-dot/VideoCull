@@ -6,9 +6,9 @@ import {
   Check, Trash2, SkipForward, Undo2, X, Play,
   ChevronLeft, ChevronRight, HardDrive, Clock, Calendar
 } from 'lucide-react';
-import '@videojs/react/video/skin.css';
+import '@videojs/react/video/minimal-skin.css';
 import { createPlayer, videoFeatures } from '@videojs/react';
-import { VideoSkin, Video } from '@videojs/react/video';
+import { MinimalVideoSkin, Video } from '@videojs/react/video';
 import { isWebSupported } from '../utils';
 import './ReviewMode.css';
 
@@ -22,6 +22,7 @@ export default function ReviewMode() {
   const setVideoStatus = useStore((s) => s.setVideoStatus);
   const undo = useStore((s) => s.undo);
   const undoStack = useStore((s) => s.undoStack);
+  const settings = useStore((s) => s.settings);
 
   const video = filteredVideos[reviewIndex] ?? null;
   const total = filteredVideos.length;
@@ -88,59 +89,66 @@ export default function ReviewMode() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
 
-      switch (e.key.toLowerCase()) {
-        case 'k':
-          e.preventDefault();
-          markKeep();
-          break;
-        case 'd':
-        case 'delete':
-          e.preventDefault();
-          markDelete();
-          break;
-        case 's':
-        case ' ':
-          e.preventDefault();
+      const key = e.key.toLowerCase();
+      const settings = useStore.getState().settings;
+
+      // Handle standard mappings
+      if (key === 'escape') {
+        e.preventDefault();
+        if (isPlaying) {
+          setIsPlaying(false);
+        } else {
+          close();
+        }
+        return;
+      }
+
+      if (key === 'arrowleft') {
+        e.preventDefault();
+        if (isPlaying && videoRef.current) {
+          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+        } else {
+          goBack();
+        }
+        return;
+      }
+
+      if (key === 'arrowright') {
+        e.preventDefault();
+        if (isPlaying && videoRef.current) {
+          videoRef.current.currentTime += 5;
+        } else {
+          advance();
+        }
+        return;
+      }
+
+      if (key === 'enter') {
+        e.preventDefault();
+        if (e.ctrlKey && window.electronAPI) {
+          window.electronAPI.openVideo(video.path);
+        } else {
           handlePlay();
-          break;
-        case 'z':
-          e.preventDefault();
-          handleUndo();
-          break;
-        case 'escape':
-          e.preventDefault();
-          if (isPlaying) {
-            setIsPlaying(false);
-          } else {
-            close();
-          }
-          break;
-        case 'arrowleft':
-          e.preventDefault();
-          if (isPlaying && videoRef.current) {
-            videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
-          } else {
-            goBack();
-          }
-          break;
-        case 'arrowright':
-          e.preventDefault();
-          if (isPlaying && videoRef.current) {
-            // Note: HTMLMediaElement doesn't have a reliable end bounds check before setting, 
-            // but setting beyond duration caps to duration.
-            videoRef.current.currentTime += 5;
-          } else {
-            advance();
-          }
-          break;
-        case 'enter':
-          e.preventDefault();
-          if (e.ctrlKey && window.electronAPI) {
-            window.electronAPI.openVideo(video.path);
-          } else {
-            handlePlay();
-          }
-          break;
+        }
+        return;
+      }
+
+      // Handle Dynamic Config Mappings
+      if (key === settings.keyKeep) {
+        e.preventDefault();
+        markKeep();
+      } else if (key === settings.keyDelete || (settings.keyDelete === 'delete' && key === 'backspace')) {
+        e.preventDefault();
+        markDelete();
+      } else if (key === settings.keySkip) {
+        e.preventDefault();
+        skip();
+      } else if (key === settings.keyUndo) {
+        e.preventDefault();
+        handleUndo();
+      } else if (key === settings.keyPlay || (settings.keyPlay === ' ' && key === 'space')) {
+        e.preventDefault();
+        handlePlay();
       }
     };
 
@@ -192,7 +200,7 @@ export default function ReviewMode() {
           <div className={`review-thumbs ${isPlaying ? 'playing' : ''}`}>
             {isPlaying ? (
               <Player.Provider>
-                <VideoSkin>
+                <MinimalVideoSkin>
                   <Video
                     ref={videoRef}
                     className="video-player"
@@ -203,7 +211,7 @@ export default function ReviewMode() {
                       e.stopPropagation();
                     }}
                   />
-                </VideoSkin>
+                </MinimalVideoSkin>
               </Player.Provider>
             ) : (
               <ThumbnailStrip thumbnails={video.thumbnails} osThumbnail={video.osThumbnail} />
@@ -245,35 +253,35 @@ export default function ReviewMode() {
           className="review-action-btn review-undo"
           onClick={handleUndo}
           disabled={undoStack.length === 0}
-          title="Undo (Z)"
+          title={`Undo (${settings.keyUndo.toUpperCase()})`}
         >
           <Undo2 size={18} />
           <span>Undo</span>
-          <kbd>Z</kbd>
+          <kbd>{settings.keyUndo.toUpperCase()}</kbd>
         </button>
 
-        <button className="review-action-btn review-btn-delete" onClick={markDelete} title="Delete (D)">
+        <button className="review-action-btn review-btn-delete" onClick={markDelete} title={`Delete (${settings.keyDelete.toUpperCase()})`}>
           <Trash2 size={20} />
           <span>Delete</span>
-          <kbd>D</kbd>
+          <kbd>{settings.keyDelete.toUpperCase()}</kbd>
         </button>
 
-        <button className="review-action-btn review-btn-play" onClick={handlePlay} title="Play (Enter)">
+        <button className="review-action-btn review-btn-play" onClick={handlePlay} title={`Play (${settings.keyPlay === ' ' ? 'Space' : settings.keyPlay.toUpperCase()})`}>
           <Play size={20} />
           <span>Play</span>
-          <kbd>↵</kbd>
+          <kbd>{settings.keyPlay === ' ' ? '␣' : settings.keyPlay.toUpperCase()}</kbd>
         </button>
 
-        <button className="review-action-btn review-btn-skip" onClick={skip} title="Skip (S / Space)">
+        <button className="review-action-btn review-btn-skip" onClick={skip} title={`Skip (${settings.keySkip.toUpperCase()})`}>
           <SkipForward size={20} />
           <span>Skip</span>
-          <kbd>S</kbd>
+          <kbd>{settings.keySkip.toUpperCase()}</kbd>
         </button>
 
-        <button className="review-action-btn review-btn-keep" onClick={markKeep} title="Keep (K)">
+        <button className="review-action-btn review-btn-keep" onClick={markKeep} title={`Keep (${settings.keyKeep.toUpperCase()})`}>
           <Check size={20} />
           <span>Keep</span>
-          <kbd>K</kbd>
+          <kbd>{settings.keyKeep.toUpperCase()}</kbd>
         </button>
       </div>
     </div>

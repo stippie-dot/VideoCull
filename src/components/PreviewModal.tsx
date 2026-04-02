@@ -1,9 +1,9 @@
 import React, { useRef, useEffect } from 'react';
 import useStore from '../store';
 import { X } from 'lucide-react';
-import '@videojs/react/video/minimal-skin.css';
+import '@videojs/react/video/skin.css';
 import { createPlayer, videoFeatures } from '@videojs/react';
-import { MinimalVideoSkin, Video } from '@videojs/react/video';
+import { VideoSkin, Video } from '@videojs/react/video';
 import './PreviewModal.css';
 
 const Player = createPlayer({ features: videoFeatures });
@@ -58,7 +58,7 @@ export default function PreviewModal() {
 
         <div className="preview-video-container">
           <Player.Provider>
-            <MinimalVideoSkin>
+            <VideoSkin>
               <Video
                 ref={videoRef}
                 className="video-player"
@@ -66,7 +66,7 @@ export default function PreviewModal() {
                 autoPlay
                 playsInline
               />
-            </MinimalVideoSkin>
+            </VideoSkin>
           </Player.Provider>
         </div>
       </div>

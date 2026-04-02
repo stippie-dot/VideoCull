@@ -124,6 +124,25 @@ const useStore = create<VideoStore>((set, get) => ({
   // ── Undo stack ──
   undoStack: [],
 
+  // ── Settings ──
+  isSettingsModalOpen: false,
+  settings: {
+    thumbsPerVideo: 6,
+    defaultCardScale: 1,
+    defaultSortBy: 'name',
+    defaultSortOrder: 'asc',
+    defaultGroupByFolder: true,
+    maxConcurrent: 'auto',
+    cpuThreadsLimited: true,
+    skipIntroDelaySecs: 3,
+    hardwareAccel: true,
+    keyKeep: 'k',
+    keyDelete: 'd',
+    keySkip: 's',
+    keyUndo: 'z',
+    keyPlay: ' ',
+  },
+
   // ── Statistics ──
   stats: { total: 0, pending: 0, keep: 0, delete: 0, totalSize: 0, deleteSize: 0 },
 
@@ -141,20 +160,26 @@ const useStore = create<VideoStore>((set, get) => ({
     });
   },
 
-  updateVideoThumbnails: (videoId: string, thumbnails: string[], durationSecs?: number, metadataDate?: number | null) => {
-    const videos = get().videos.map((v) =>
-      v.id === videoId ? {
-        ...v,
-        thumbnails,
-        durationSecs: durationSecs ?? v.durationSecs,
-        metadataDate: metadataDate ?? v.metadataDate,
-      } : v
-    );
+  updateVideoThumbnailsBatch: (batch) => {
+    const videos = [...get().videos];
+    let changed = false;
+    for (const item of batch) {
+      const vIdx = videos.findIndex((v) => v.id === item.videoId);
+      if (vIdx >= 0) {
+        videos[vIdx] = { 
+          ...videos[vIdx], 
+          thumbnails: item.thumbnails, 
+          durationSecs: item.durationSecs ?? videos[vIdx].durationSecs, 
+          metadataDate: item.metadataDate ?? videos[vIdx].metadataDate 
+        };
+        changed = true;
+      }
+    }
+    if (!changed) return;
     const state = { ...get(), videos };
     set({
       videos,
       filteredVideos: computeFiltered(state),
-      stats: computeStats(videos),
     });
   },
 
@@ -285,6 +310,46 @@ const useStore = create<VideoStore>((set, get) => ({
       stats: computeStats(videos),
       undoStack: [],
     });
+  },
+
+  // ── Settings ──
+  setIsSettingsModalOpen: (val: boolean) => set({ isSettingsModalOpen: val }),
+  updateSettings: (newSettings) => {
+    const state = get();
+    const mergedSettings = { ...state.settings, ...newSettings };
+    const newState = {
+      ...state,
+      settings: mergedSettings,
+      cardScale: newSettings.defaultCardScale ?? state.cardScale,
+      sortBy: newSettings.defaultSortBy ?? state.sortBy,
+      sortOrder: newSettings.defaultSortOrder ?? state.sortOrder,
+      groupByFolder: newSettings.defaultGroupByFolder ?? state.groupByFolder
+    };
+    set({
+      ...newState,
+      filteredVideos: computeFiltered(newState)
+    });
+  },
+  saveSettings: async () => {
+    const s = get().settings;
+    if (window.electronAPI) {
+      await window.electronAPI.saveConfig(s);
+    }
+  },
+  loadSettings: async () => {
+    if (window.electronAPI) {
+      const s = await window.electronAPI.getConfig();
+      if (s) {
+        const fullSettings = { ...get().settings, ...s };
+        set({ 
+          settings: fullSettings,
+          cardScale: fullSettings.defaultCardScale,
+          sortBy: fullSettings.defaultSortBy,
+          sortOrder: fullSettings.defaultSortOrder,
+          groupByFolder: fullSettings.defaultGroupByFolder
+        });
+      }
+    }
   },
 }));
 

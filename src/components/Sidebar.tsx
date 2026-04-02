@@ -4,7 +4,7 @@ import useStore from '../store';
 import { formatSize } from '../utils';
 import {
   FolderOpen, RefreshCw, Play, Trash2, Filter,
-  ArrowUpDown, HardDrive, FileVideo, Check, X, Clock, Maximize2
+  ArrowUpDown, HardDrive, FileVideo, Check, X, Clock, Maximize2, Settings
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -109,17 +109,15 @@ export default function Sidebar({ onRescan }: SidebarProps) {
       <section className="sidebar-section">
         <button className="btn btn-primary" onClick={handleSelectDir}>
           <FolderOpen size={16} />
-          {directory ? 'Change Folder' : 'Select Folder'}
+          Change Folder
         </button>
 
-        {directory && (
-          <div className="directory-info">
-            <HardDrive size={14} />
-            <span className="directory-path" title={directory}>
-              {directory}
-            </span>
-          </div>
-        )}
+        <div className="directory-info">
+          <HardDrive size={14} />
+          <span className="directory-path" title={directory || undefined}>
+            {directory}
+          </span>
+        </div>
 
         <label className="checkbox-label">
           <input
@@ -130,12 +128,10 @@ export default function Sidebar({ onRescan }: SidebarProps) {
           Include subfolders
         </label>
 
-        {directory && (
-          <button className="btn btn-ghost" onClick={onRescan} disabled={isScanning}>
-            <RefreshCw size={14} className={isScanning ? 'spin' : ''} />
-            Rescan
-          </button>
-        )}
+        <button className="btn btn-ghost" onClick={onRescan} disabled={isScanning}>
+          <RefreshCw size={14} className={isScanning ? 'spin' : ''} />
+          Rescan
+        </button>
       </section>
 
       {(isScanning || isGenerating) && (
@@ -327,14 +323,8 @@ export default function Sidebar({ onRescan }: SidebarProps) {
         </section>
       )}
 
-      <div className="sidebar-actions">
-        {filteredVideos.length > 0 && (
-          <button className="btn btn-accent" onClick={handleStartReview}>
-            <Play size={16} />
-            Review Mode
-          </button>
-        )}
-        {stats.delete > 0 && (
+      {(stats.delete > 0) && (
+        <div className="sidebar-actions">
           <button
             className="btn btn-danger"
             onClick={handleBatchDelete}
@@ -344,6 +334,23 @@ export default function Sidebar({ onRescan }: SidebarProps) {
             {isDeleting
               ? 'Deleting…'
               : `Delete ${stats.delete} videos (${formatSize(stats.deleteSize)})`}
+          </button>
+        </div>
+      )}
+
+      <div className="sidebar-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <button className="settings-icon-btn" onClick={() => useStore.getState().setIsSettingsModalOpen(true)} title="Preferences (Ctrl+,)" style={{ flexShrink: 0 }}>
+          <Settings size={18} />
+        </button>
+
+        {filteredVideos.length > 0 && (
+          <button 
+            className="btn btn-accent" 
+            onClick={handleStartReview} 
+            style={{ flex: 1, padding: '8px', fontSize: '13px' }}
+          >
+            <Play size={16} />
+            Review Mode
           </button>
         )}
       </div>

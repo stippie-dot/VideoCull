@@ -103,9 +103,14 @@
 }
 
 :fullscreen .video-player,
-:-webkit-full-screen .video-player {
-  max-height: none;
-  max-width: none;
+:-webkit-full-screen .video-player,
+.vjs-fullscreen .vjs-tech,
+.vjs-fullscreen .video-player {
+  max-height: none !important;
+  max-width: none !important;
+  height: 100% !important;
+  width: 100% !important;
+  object-fit: contain !important;
 }
 
 .review-filename {

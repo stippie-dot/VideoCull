@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import type { Video } from '../types';
 import useStore from '../store';
 import ThumbnailStrip from './ThumbnailStrip';
@@ -12,6 +13,28 @@ interface VideoCardProps {
 }
 
 export default function VideoCard({ video, style, onClick }: VideoCardProps) {
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    // Hard-throttle IPC protocol overloading by deferring DOM parsing until approaching viewport
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '350px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const setVideoStatus = useStore((s) => s.setVideoStatus);
   const setPreviewVideo = useStore((s) => s.setPreviewVideo);
 
@@ -41,9 +64,13 @@ export default function VideoCard({ video, style, onClick }: VideoCardProps) {
   };
 
   return (
-    <div className={`video-card ${statusClass}`} style={style} onClick={() => onClick?.(video)}>
+    <div ref={cardRef} className={`video-card ${statusClass}`} style={style} onClick={() => onClick?.(video)}>
       <div className="card-thumb-area">
-        <ThumbnailStrip thumbnails={video.thumbnails} compact />
+        {isVisible ? (
+          <ThumbnailStrip thumbnails={video.thumbnails} compact />
+        ) : (
+          <div className="thumb-strip thumb-strip-placeholder thumb-strip-compact" />
+        )}
 
         {video.status !== 'pending' && (
           <div className={`card-status-badge badge-${video.status}`}>

@@ -1,9 +1,12 @@
 import useStore from '../store';
-import { FolderOpen, Film } from 'lucide-react';
+import { FolderOpen, Film, Settings } from 'lucide-react';
 import './EmptyState.css';
 
 export default function EmptyState() {
   const setDirectory = useStore((s) => s.setDirectory);
+  const includeSubfolders = useStore((s) => s.includeSubfolders);
+  const setIncludeSubfolders = useStore((s) => s.setIncludeSubfolders);
+  const settings = useStore((s) => s.settings);
 
   const handleSelect = async () => {
     if (!window.electronAPI) return;
@@ -13,6 +16,9 @@ export default function EmptyState() {
 
   return (
     <div className="empty-state">
+      <button className="settings-icon-btn empty-state-settings" onClick={() => useStore.getState().setIsSettingsModalOpen(true)} title="Preferences (Ctrl+,)">
+        <Settings size={20} />
+      </button>
       <div className="empty-icon">
         <Film size={56} strokeWidth={1.2} />
       </div>
@@ -25,11 +31,21 @@ export default function EmptyState() {
         <FolderOpen size={18} />
         Select Folder
       </button>
+
+      <label className="empty-subfolders">
+        <input 
+          type="checkbox" 
+          checked={includeSubfolders}
+          onChange={(e) => setIncludeSubfolders(e.target.checked)}
+        />
+        Include subfolders
+      </label>
+
       <div className="empty-shortcuts">
-        <span><kbd>K</kbd> Keep</span>
-        <span><kbd>D</kbd> Delete</span>
-        <span><kbd>S</kbd> Skip</span>
-        <span><kbd>Z</kbd> Undo</span>
+        <span><kbd>{settings.keyKeep.toUpperCase()}</kbd> Keep</span>
+        <span><kbd>{settings.keyDelete.toUpperCase()}</kbd> Delete</span>
+        <span><kbd>{settings.keySkip.toUpperCase()}</kbd> Skip</span>
+        <span><kbd>{settings.keyUndo.toUpperCase()}</kbd> Undo</span>
       </div>
     </div>
   );

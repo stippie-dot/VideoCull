@@ -53,6 +53,27 @@
   align-items: center;
   gap: 6px;
 }
+
+.empty-state-settings {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.empty-subfolders {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.empty-subfolders input[type="checkbox"] {
+  accent-color: var(--accent);
+}
 .empty-shortcuts kbd {
   display: inline-block;
   padding: 2px 8px;

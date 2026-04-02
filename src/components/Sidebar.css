@@ -74,6 +74,7 @@
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
+  margin-top: 10px;
 }
 .checkbox-label input[type="checkbox"] {
   width: 16px;
@@ -375,4 +376,30 @@
   min-width: 36px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Settings Footer ── */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+}
+
+.settings-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.settings-icon-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
 }

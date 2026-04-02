@@ -113,10 +113,10 @@ export default function GridMode() {
     return result;
   }, [filteredVideos, columnCount, groupByFolder, directory]);
 
-  // Reset list cache when rows change
+  // Reset list cache ONLY when structural physical dimensions change layout measurements
   useEffect(() => {
     listRef.current?.resetAfterIndex(0);
-  }, [rows]);
+  }, [columnCount, cardScale, groupByFolder]);
 
   const getItemSize = useCallback(
     (index: number) => rows[index].type === 'header' ? HEADER_HEIGHT : cardHeight + GAP,
@@ -124,17 +124,18 @@ export default function GridMode() {
   );
 
   const handleCardClick = useCallback((video: Video) => {
-    const idx = filteredVideos.findIndex((v) => v.id === video.id);
+    const state = useStore.getState();
+    const idx = state.filteredVideos.findIndex((v) => v.id === video.id);
     if (idx >= 0) {
-      setReviewIndex(idx);
-      setReviewMode(true);
+      state.setReviewIndex(idx);
+      state.setReviewMode(true);
     }
-  }, [filteredVideos, setReviewIndex, setReviewMode]);
+  }, []);
 
   const columnWidth = (dimensions.width - GAP * (columnCount + 1)) / columnCount;
 
-  const Row = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
-    const item = rows[index];
+  const Row = useCallback(({ index, style, data }: { index: number; style: React.CSSProperties; data: RowItem[] }) => {
+    const item = data[index];
 
     if (item.type === 'header') {
       return (
@@ -167,7 +168,7 @@ export default function GridMode() {
         ))}
       </div>
     );
-  }, [rows, columnWidth, cardHeight, handleCardClick]);
+  }, [columnWidth, cardHeight, handleCardClick]);
 
   return (
     <div className="grid-mode" ref={containerRef}>
@@ -181,8 +182,9 @@ export default function GridMode() {
           height={dimensions.height}
           width={dimensions.width}
           itemCount={rows.length}
+          itemData={rows}
           itemSize={getItemSize}
-          overscanCount={5}
+          overscanCount={2}
         >
           {Row}
         </VariableSizeList>

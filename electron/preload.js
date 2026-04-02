@@ -24,14 +24,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('thumb-progress', handler);
     return () => ipcRenderer.removeListener('thumb-progress', handler);
   },
-  onThumbReady: (callback) => {
+  onThumbReadyBatch: (callback) => {
     const handler = (_event, data) => callback(data);
-    ipcRenderer.on('thumb-ready', handler);
-    return () => ipcRenderer.removeListener('thumb-ready', handler);
+    ipcRenderer.on('thumb-ready-batch', handler);
+    return () => ipcRenderer.removeListener('thumb-ready-batch', handler);
   },
 
-  // Cache
+  // Cache & Config
   saveCache: (dirPath, videos) => ipcRenderer.invoke('save-cache', dirPath, videos),
+  clearCache: (dirPath) => ipcRenderer.invoke('clear-cache', dirPath),
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
 
   // Actions
   batchDelete: (filePaths) => ipcRenderer.invoke('batch-delete', filePaths),

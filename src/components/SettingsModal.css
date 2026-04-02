@@ -1,0 +1,241 @@
+.settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.settings-window {
+  width: 700px;
+  height: 550px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  overflow: hidden;
+  animation: modal-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.settings-header {
+  height: 50px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--bg-surface-hover);
+}
+
+.settings-header h2 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.settings-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.settings-close-btn:hover {
+  background: var(--bg-hover-danger);
+  color: #fff;
+}
+
+.settings-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 180px;
+  border-right: 1px solid var(--border-color);
+  background: rgba(0,0,0,0.1);
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.settings-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group.row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.form-group.row label {
+  margin: 0;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-group select,
+.form-group input[type="text"],
+.form-group input[type="number"] {
+  background: var(--bg-app);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+  border-color: var(--accent);
+}
+
+.flex-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+input[type="checkbox"],
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+.key-input {
+  width: 60px;
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.number-input {
+  width: 80px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.help-text {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+.help-text.indent {
+  margin-left: 24px;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+.settings-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--bg-surface);
+}
+
+.btn-cancel,
+.btn-save {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-cancel:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.btn-save {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.25);
+}
+
+.btn-save:hover {
+  filter: brightness(1.15);
+}

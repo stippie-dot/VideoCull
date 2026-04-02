@@ -63,6 +63,24 @@ export interface UndoEntry {
   previousIndex: number;
 }
 
+// ── Settings ───────────────────────────────────────────────────────
+export interface AppSettings {
+  thumbsPerVideo: 1 | 2 | 4 | 6 | 9;
+  defaultCardScale: number;
+  defaultSortBy: SortField;
+  defaultSortOrder: SortOrder;
+  defaultGroupByFolder: boolean;
+  maxConcurrent: number | 'auto';
+  cpuThreadsLimited: boolean;
+  skipIntroDelaySecs: number;
+  hardwareAccel: boolean;
+  keyKeep: string;
+  keyDelete: string;
+  keySkip: string;
+  keyUndo: string;
+  keyPlay: string;
+}
+
 // ── Store State ────────────────────────────────────────────────────
 export interface VideoStore {
   // Directory
@@ -90,6 +108,10 @@ export interface VideoStore {
   folderSortBy: FolderSortField;
   folderSortOrder: SortOrder;
 
+  // Settings
+  settings: AppSettings;
+  isSettingsModalOpen: boolean;
+
   // View Mode
   reviewMode: boolean;
   reviewIndex: number;
@@ -108,7 +130,7 @@ export interface VideoStore {
   setDirectory: (dir: string | null) => void;
   setIncludeSubfolders: (val: boolean) => void;
   setVideos: (videos: Video[]) => void;
-  updateVideoThumbnails: (videoId: string, thumbnails: string[], durationSecs?: number, metadataDate?: number | null) => void;
+  updateVideoThumbnailsBatch: (batch: ThumbReadyEvent[]) => void;
   setOSThumbnail: (videoId: string, thumbData: string) => void;
   setVideoStatus: (videoId: string, status: VideoStatus) => void;
   undo: () => void;
@@ -129,6 +151,12 @@ export interface VideoStore {
   setCardScale: (scale: number) => void;
   advanceReview: () => void;
   removeDeletedVideos: (deletedPaths: string[]) => void;
+
+  // Settings Actions
+  setIsSettingsModalOpen: (val: boolean) => void;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
+  saveSettings: () => Promise<void>;
+  loadSettings: () => Promise<void>;
 }
 
 // ── Electron API (exposed via preload) ─────────────────────────────
@@ -141,12 +169,14 @@ export interface ElectronAPI {
   cancelGeneration: () => Promise<boolean>;
   getOSThumbnail: (filePath: string) => Promise<string | null>;
   onThumbProgress: (callback: (data: ThumbProgress) => void) => () => void;
-  onThumbReady: (callback: (data: ThumbReadyEvent) => void) => () => void;
+  onThumbReadyBatch: (callback: (batch: ThumbReadyEvent[]) => void) => () => void;
   onMenuAction: (callback: (action: string) => void) => () => void;
   saveCache: (dirPath: string, videos: Video[]) => Promise<boolean>;
   clearCache: (dirPath: string) => Promise<boolean>;
   batchDelete: (filePaths: string[]) => Promise<DeleteResult[]>;
   openVideo: (filePath: string) => Promise<void>;
+  getConfig: () => Promise<AppSettings | null>;
+  saveConfig: (config: AppSettings) => Promise<boolean>;
 }
 
 // ── Global augmentation ────────────────────────────────────────────

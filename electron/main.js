@@ -56,7 +56,14 @@ app.whenReady().then(() => {
     }
     
     try {
-      return net.fetch(pathToFileURL(filePath).toString());
+      const buffer = await require('fs').promises.readFile(filePath);
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=86400, immutable',
+        }
+      });
     } catch (e) {
       return new Response('Not Found', { status: 404 });
     }
@@ -142,6 +149,12 @@ function setApplicationMenu() {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'Settings...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => mainWindow && mainWindow.webContents.send('menu-action', 'open-settings')
+        },
+        { type: 'separator' },
         {
           label: 'Open Directory...',
           accelerator: 'CmdOrCtrl+O',
@@ -318,13 +331,41 @@ ipcMain.handle('generate-thumbnails', async (_event, videos, dirPath) => {
   const thumbDir = path.join(dirPath, THUMB_DIR);
   await fs.mkdir(thumbDir, { recursive: true });
 
-  const needThumbs = videos.filter((v) => !v.thumbnails || v.thumbnails.length === 0);
+  let config = {};
+  try {
+    const data = await fs.readFile(path.join(app.getPath('userData'), CONFIG_FILE), 'utf8');
+    config = JSON.parse(data);
+  } catch (e) {
+    // Defaults are fine
+  }
 
-  await processVideos(needThumbs, thumbDir, (progress) => {
-    mainWindow.webContents.send('thumb-progress', progress);
+  const THUMB_COUNT = config.thumbsPerVideo || 6;
+  const needThumbs = videos.filter((v) => !v.thumbnails || v.thumbnails.length !== THUMB_COUNT);
+
+  let readyBatch = [];
+  let lastProgress = null;
+  
+  const flushBatch = () => {
+    if (readyBatch.length > 0) {
+      mainWindow.webContents.send('thumb-ready-batch', readyBatch);
+      readyBatch = [];
+    }
+    if (lastProgress) {
+      mainWindow.webContents.send('thumb-progress', lastProgress);
+      lastProgress = null;
+    }
+  };
+
+  const batchInterval = setInterval(flushBatch, 1000);
+
+  await processVideos(needThumbs, thumbDir, config, (progress) => {
+    lastProgress = progress;
   }, (videoId, thumbnails, durationSecs, creationTime) => {
-    mainWindow.webContents.send('thumb-ready', { videoId, thumbnails, durationSecs, metadataDate: creationTime });
+    readyBatch.push({ videoId, thumbnails, durationSecs, metadataDate: creationTime });
   });
+
+  flushBatch();
+  clearInterval(batchInterval);
 
   return true;
 });
@@ -349,14 +390,30 @@ ipcMain.handle('save-cache', async (event, dirPath, videos) => {
 
 ipcMain.handle('clear-cache', async (event, dirPath) => {
   if (!dirPath || typeof dirPath !== 'string') return false;
+  
+  cancelProcessing();
+  
   try {
     const cachePath = path.join(dirPath, CACHE_FILE);
     await fs.unlink(cachePath);
+  } catch (err) {
+    // Ignore ENOENT
+  }
+  try {
+    const thumbDir = path.join(dirPath, THUMB_DIR);
+    const trashDir = path.join(dirPath, `${THUMB_DIR}_trash_${Date.now()}`);
+    
+    try {
+      await fs.rename(thumbDir, trashDir);
+      // Run deletion asynchronously in background so it doesn't block the UI
+      fs.rm(trashDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
+    } catch (renameErr) {
+      // Fallback
+      await fs.rm(thumbDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    }
     return true;
   } catch (err) {
-    if (err.code !== 'ENOENT') {
-      console.error('Error clearing cache:', err);
-    }
+    console.error('Error clearing thumbs map:', err);
     return false;
   }
 });
@@ -441,6 +498,30 @@ ipcMain.handle('get-os-thumbnail', async (_event, filePath) => {
 // 8. Open video in default system player
 ipcMain.handle('open-video', async (_event, filePath) => {
   await shell.openPath(filePath);
+});
+
+// 9. Config management
+const CONFIG_FILE = 'settings.json';
+
+ipcMain.handle('get-config', async () => {
+  try {
+    const configPath = path.join(app.getPath('userData'), CONFIG_FILE);
+    const data = await fs.readFile(configPath, 'utf8');
+    return JSON.parse(data);
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('save-config', async (_event, config) => {
+  try {
+    const configPath = path.join(app.getPath('userData'), CONFIG_FILE);
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Save config error:', e);
+    return false;
+  }
 });
 
 // 8. Open a directory in explorer
