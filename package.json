@@ -2,6 +2,7 @@
   "name": "video-cull",
   "version": "1.0.0",
   "description": "High-performance video culling tool for managing large video collections",
+  "author": "stippie dot",
   "main": "electron/main.js",
   "scripts": {
     "dev:vite": "vite",
@@ -11,6 +12,8 @@
     "package": "vite build && electron-builder --win"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "@videojs/react": "^10.0.0-beta.13",
     "fluent-ffmpeg": "^2.1.3",
     "lucide-react": "^0.400.0",
@@ -41,8 +44,21 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "asarUnpack": [
+      "**/*.{exe,dll,dylib,so}"
+    ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Video Cull",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp"
     }
   }
 }

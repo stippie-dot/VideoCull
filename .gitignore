@@ -25,4 +25,8 @@ dist-ssr
 
 # Video Cull specific
 .video-cull-cache.json
-.video-cull-thumbs*
+.video-cull-thumbs*/
+
+# Build output
+build/
+release/

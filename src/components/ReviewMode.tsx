@@ -29,6 +29,34 @@ export default function ReviewMode() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cardScale = useStore((s) => s.cardScale);
+
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const dynamicAspectRatio = useMemo(() => {
+    const thumbCount = video?.thumbnails?.length || 1;
+    let cols = 3, rows = 2;
+    if (thumbCount === 1) { cols = 1; rows = 1; }
+    else if (thumbCount === 2) { cols = 2; rows = 1; }
+    else if (thumbCount === 4) { cols = 2; rows = 2; }
+    else if (thumbCount === 6) { cols = 3; rows = 2; }
+    else if (thumbCount === 9) { cols = 3; rows = 3; }
+    else { 
+      cols = Math.ceil(Math.sqrt(thumbCount)); 
+      rows = Math.ceil(thumbCount / cols); 
+    }
+
+    // Mathematically perfect aspect ratio assuming standard ~16:9 video source.
+    // This perfectly hugs the thumbnails, entirely eliminating internal black bars 
+    // without needing to arbitrarily guess zoom percentages!
+    return (cols * 16) / (rows * 9);
+  }, [video?.thumbnails?.length]);
 
   const isSupported = useMemo(() => {
     if (!video) return false;
@@ -184,7 +212,7 @@ export default function ReviewMode() {
         {reviewIndex + 1} / {total}
       </div>
 
-      <div className="review-content">
+      <div className={`review-content ${isPlaying ? 'playing' : ''}`}>
         <button
           className="review-nav review-nav-left"
           onClick={(e) => {
@@ -197,7 +225,10 @@ export default function ReviewMode() {
         </button>
 
         <div className="review-center">
-          <div className={`review-thumbs ${isPlaying ? 'playing' : ''}`}>
+          <div 
+            className={`review-thumbs ${isPlaying ? 'playing' : ''}`}
+            style={!isPlaying ? { aspectRatio: `${dynamicAspectRatio}` } : undefined}
+          >
             {isPlaying ? (
               <Player.Provider>
                 <MinimalVideoSkin>
@@ -214,7 +245,7 @@ export default function ReviewMode() {
                 </MinimalVideoSkin>
               </Player.Provider>
             ) : (
-              <ThumbnailStrip thumbnails={video.thumbnails} osThumbnail={video.osThumbnail} />
+              <ThumbnailStrip thumbnails={video.thumbnails} osThumbnail={video.osThumbnail} compact={true} />
             )}
           </div>
 

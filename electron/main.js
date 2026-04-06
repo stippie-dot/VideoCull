@@ -79,6 +79,8 @@ app.whenReady().then(() => {
     
     try {
       const { createReadStream, statSync } = require('fs');
+      // For video streaming we need to manually handle range requests to support seeking.
+      // We use a large highWaterMark (5MB) to drastically reduce IPC overhead and prevent buffering.
       const { Readable } = require('stream');
       const stats = statSync(filePath);
       const fileSize = stats.size;
@@ -89,13 +91,15 @@ app.whenReady().then(() => {
       if (ext === '.webm') contentType = 'video/webm';
       else if (ext === '.ogg') contentType = 'video/ogg';
 
+      const highWaterMark = 5 * 1024 * 1024; // 5MB chunks
+
       if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
         const chunksize = (end - start) + 1;
         
-        const fileStream = createReadStream(filePath, { start, end });
+        const fileStream = createReadStream(filePath, { start, end, highWaterMark });
         const webStream = Readable.toWeb(fileStream);
 
         return new Response(webStream, {
@@ -108,13 +112,14 @@ app.whenReady().then(() => {
           }
         });
       } else {
-        const fileStream = createReadStream(filePath);
+        const fileStream = createReadStream(filePath, { highWaterMark });
         const webStream = Readable.toWeb(fileStream);
         return new Response(webStream, {
           status: 200,
           headers: {
             'Content-Length': fileSize.toString(),
             'Content-Type': contentType,
+            'Accept-Ranges': 'bytes',
           }
         });
       }

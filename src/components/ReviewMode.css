@@ -61,6 +61,11 @@
   max-width: 900px;
   padding: 0 24px;
   flex: 1;
+  transition: max-width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.review-content.playing {
+  max-width: 1400px;
 }
 
 .review-center {
@@ -69,6 +74,7 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
+  width: 100%;
 }
 
 .review-thumbs {
@@ -83,19 +89,16 @@
 }
 
 .review-thumbs.playing {
-  max-width: 1000px;
+  max-width: 100%;
   box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8);
 }
 
-.review-thumbs .thumb-strip {
-  aspect-ratio: 16 / 6;
-}
 
 /* ── Video Player ── */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 70vh;
+  max-height: 80vh;
   object-fit: contain;
   background: #000;
   display: block;
