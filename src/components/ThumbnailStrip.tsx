@@ -1,3 +1,4 @@
+import { calcThumbGrid } from '../utils';
 import './ThumbnailStrip.css';
 
 interface ThumbnailStripProps {
@@ -28,19 +29,7 @@ export default function ThumbnailStrip({ thumbnails, osThumbnail, compact = fals
     );
   }
 
-  // Calculate optimal layout for dynamic thumbnail counts
-  let cols = 3, rows = 2;
-  const len = thumbnails.length;
-  if (len === 1) { cols = 1; rows = 1; }
-  else if (len === 2) { cols = 2; rows = 1; }
-  else if (len === 4) { cols = 2; rows = 2; }
-  else if (len === 6) { cols = 3; rows = 2; }
-  else if (len === 9) { cols = 3; rows = 3; }
-  // Provide a safe fallback if somehow an unknown number drops in
-  else {
-    cols = Math.ceil(Math.sqrt(len));
-    rows = Math.ceil(len / cols);
-  }
+  const { cols, rows } = calcThumbGrid(thumbnails.length);
 
   return (
     <div 
@@ -49,7 +38,7 @@ export default function ThumbnailStrip({ thumbnails, osThumbnail, compact = fals
     >
       {thumbnails.map((thumb, i) => (
         <img
-          key={i}
+          key={thumb}
           className="thumb-img"
           src={`thumb:///${encodeURIComponent(thumb)}`}
           loading="lazy"

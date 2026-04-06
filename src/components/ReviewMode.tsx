@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import useStore from '../store';
 import ThumbnailStrip from './ThumbnailStrip';
-import { formatSize, formatDuration, formatDate } from '../utils';
+import { formatSize, formatDuration, formatDate, calcThumbGrid } from '../utils';
 import {
   Check, Trash2, SkipForward, Undo2, X, Play,
   ChevronLeft, ChevronRight, HardDrive, Clock, Calendar
@@ -29,32 +29,10 @@ export default function ReviewMode() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const cardScale = useStore((s) => s.cardScale);
-
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const dynamicAspectRatio = useMemo(() => {
-    const thumbCount = video?.thumbnails?.length || 1;
-    let cols = 3, rows = 2;
-    if (thumbCount === 1) { cols = 1; rows = 1; }
-    else if (thumbCount === 2) { cols = 2; rows = 1; }
-    else if (thumbCount === 4) { cols = 2; rows = 2; }
-    else if (thumbCount === 6) { cols = 3; rows = 2; }
-    else if (thumbCount === 9) { cols = 3; rows = 3; }
-    else { 
-      cols = Math.ceil(Math.sqrt(thumbCount)); 
-      rows = Math.ceil(thumbCount / cols); 
-    }
-
+    const { cols, rows } = calcThumbGrid(video?.thumbnails?.length || 1);
     // Mathematically perfect aspect ratio assuming standard ~16:9 video source.
-    // This perfectly hugs the thumbnails, entirely eliminating internal black bars 
-    // without needing to arbitrarily guess zoom percentages!
     return (cols * 16) / (rows * 9);
   }, [video?.thumbnails?.length]);
 
@@ -153,7 +131,7 @@ export default function ReviewMode() {
 
       if (key === 'enter') {
         e.preventDefault();
-        if (e.ctrlKey && window.electronAPI) {
+        if (e.ctrlKey && window.electronAPI && video?.path) {
           window.electronAPI.openVideo(video.path);
         } else {
           handlePlay();
@@ -182,7 +160,7 @@ export default function ReviewMode() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [markKeep, markDelete, skip, handleUndo, close, goBack, advance, handlePlay, isPlaying]);
+  }, [markKeep, markDelete, skip, handleUndo, close, goBack, advance, handlePlay, isPlaying, video]);
 
   if (!video) {
     return (

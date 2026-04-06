@@ -35,6 +35,20 @@ export function formatDate(timestampMs: number | null | undefined): string {
   });
 }
 
+/**
+ * Calculate the optimal grid columns/rows for a given number of thumbnails.
+ * Returns { cols, rows } for use in CSS grid layout and aspect ratio calculations.
+ */
+export function calcThumbGrid(count: number): { cols: number; rows: number } {
+  if (count === 1) return { cols: 1, rows: 1 };
+  if (count === 2) return { cols: 2, rows: 1 };
+  if (count === 4) return { cols: 2, rows: 2 };
+  if (count === 6) return { cols: 3, rows: 2 };
+  if (count === 9) return { cols: 3, rows: 3 };
+  const cols = Math.ceil(Math.sqrt(count));
+  return { cols, rows: Math.ceil(count / cols) };
+}
+
 export const WEB_SUPPORTED_EXTS = ['.mp4', '.webm', '.ogg', '.mov', '.mkv', '.m4v'];
 
 export function isWebSupported(path: string): boolean {
