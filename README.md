@@ -1,81 +1,149 @@
-# Video-Cull 🎬
+# Video Cull
 
-A high-performance desktop application for rapidly culling and managing massive video collections (4TB+). 
+> Tear through a massive video library in minutes. No cloud. No account. Just you, your files, and a keyboard.
 
-Video-Cull is designed for speed. Instead of opening each video file in an external heavy media player, it generates a strip of thumbnails for every video in a folder allowing you to quickly decide what to keep and what to delete using intuitive keyboard shortcuts. 
+You've got a folder full of videos — dashcam clips, downloaded channels, drone footage, years of random stuff you never got around to sorting. Opening each one in VLC is not a workflow. Video Cull is.
 
-For deeper reviews, Video-Cull implements a Hybrid Playback system. It combines low-level Chromium range streaming with the elegant **Video.js** user interface, giving you a lightning-fast, premium native player to preview and scrub through massive video files flawlessly.
+Point it at a folder. It scans everything, generates thumbnail strips for every video, and gives you a fast, keyboard-driven interface to decide what stays and what goes. When thumbnails aren't enough, hit play and scrub through it right there. Mark, move on, repeat.
 
----
-
-## ✨ Key Features
-
-- **Multi-Thumbnail Previews:** Automatically generates 6 thumbnails per video, strategically spread across the duration, to give you a full visual overview at a glance.
-- **Hybrid In-App Player (Video.js):** Uses a custom `video://` IPC protocol to allow local backend byte-range streaming via Node's `fs`, piped directly into the `@videojs/react` frontend. This enables hardware-accelerated scrubbing of massive videos without locking up your RAM.
-- **Grid Mode (Overview):** Group massive batches of clips by folders. Use `Ctrl+Click` for an instant external playback, or click the overlay play button for a rapid **Inline Preview Modal** across supported formats.
-- **Review Mode:** A focused, fullscreen "Tinder-style" interface with dynamic CSS Theater Mode for rapid decision-making. Play, scrub, and judge sequentially.
-- **Keyboard-First Workflow:** Never touch your mouse. Use `K` (Keep), `D` (Delete), `S` / `Space` (Play/Skip), and `Z` (Undo).
-- **External Format Fallbacks:** Web formats (like `.mp4`, `.webm`) play natively in-app. Heavy or proprietary codecs (like `.avi`) intelligently fallback and automatically pop open in your OS's default external player (e.g. VLC).
-- **Smart Caching:** Stores generated thumbnails and statuses locally in a `.video-cull-cache.json` file inside the media directory, meaning your progress moves with your external drives!
-- **Trash Integration & Batch Deletion:** You have the final say. Uses the system Recycle Bin for safety—nothing is permanently deleted until you mass complete the culling process.
+When you're done, one command sends everything marked for deletion to the Recycle Bin. Nothing is permanently gone until you say so.
 
 ---
 
-## ⌨️ Keyboard Shortcuts & Global App Menu
+## Screenshots
 
-| Key | Action |
-|-----|--------|
-| `K` | Mark as **Keep** |
-| `D` | Mark as **Delete** |
-| `Space` | **Play/Pause** video player |
-| `←` / `→` | **Scrub (15s)** backward or forward |
-| `Z` | **Undo** last action |
-| `Esc`| Exit Review Mode / Exit Inline Preview |
-| `Enter` | Open video for deep review |
-| `Ctrl + Enter` (Review Mode)| Force open in External OS Player |
-| `Ctrl + Click` (Grid Mode)| Force open in External OS Player |
-| `Ctrl + Backspace`| Batch Delete all marked items to Recycle Bin |
-| `Ctrl + Shift + R`| Clear local JSON thumbnail cache |
-| `Ctrl + E`| Reveal file in system File Explorer |
+*Coming soon*
 
 ---
 
-## 🚀 Getting Started
+## Download
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v16 or higher)
-- [FFmpeg](https://ffmpeg.org/) installed and added to your system PATH.
+Grab the latest installer from the [Releases](https://github.com/stippie-dot/VideoCurl/releases) page.
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/stippie-dot/videocurl.git
-   cd videocurl
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the application in development mode:
-   ```bash
-   npm run dev
-   ```
+Installs for the current user — no admin rights needed. On first launch Windows may show a SmartScreen prompt since the app isn't code-signed yet; click "Run anyway" to proceed.
 
 ---
 
-## 🛠️ Built With
+## Features
 
-- **Electron**: System bridging and internal custom playback protocols (`protocol.handle`).
-- **React**: Component layout & routing.
-- **Video.js (v10)**: The `@videojs/react` library forms the core of our aesthetic and responsive native speler layers (`DefaultVideoSkin` & `MinimalVideoSkin`).
-- **Zustand**: Fast and functional global state management (for views, caches, and global event routing).
-- **TypeScript**: Robust application-scale type safety.
-- **FFmpeg**: Backend process spawning for high-speed thumbnail generation.
-- **Lucide**: Clean standardized iconography.
+### Grid View
 
-## 📄 License
+The main screen shows your entire library at a glance — every video represented by a strip of thumbnails pulled from different points in the file, so you know what you're looking at without opening anything.
 
-This project is licensed under the GNU General Public License v3.0.
+- Adjustable card size (zoom in/out with `Ctrl++` / `Ctrl+-`)
+- Group videos by subfolder, with per-folder totals
+- Filter by status (All / Pending / Keep / Delete)
+- Filter by file size (50 MB+, 100 MB+, 500 MB+, 1 GB+)
+- Sort by name, size, duration, or date — ascending or descending
+- Quick inline preview for supported formats, external player for everything else
+
+### Review Mode
+
+A fullscreen, one-at-a-time view for when you actually want to pay attention. Keyboard only. Make a call, move to the next one.
+
+- Thumbnail strip with dynamic aspect ratio — no black bars, no guessing
+- In-app video player with scrubbing support
+- Metadata at a glance: filename, filesize, duration, date
+- Undo any decision at any time before you commit the batch delete
+
+### Thumbnail Generation
+
+Video Cull uses FFmpeg in the background to extract frames. A few things worth knowing:
+
+- **Configurable frame count** — 1, 2, 4, 6, or 9 thumbnails per video (default: 6)
+- **Intro skip** — first frame is offset by a configurable delay (default: 3 seconds) to avoid black fades
+- **Parallel processing** — configurable concurrency: auto-detect, or set manually from 1 to 8 threads
+- **Cached** — thumbnails are stored in a hidden `.video-cull-thumbs` folder next to your media; already-processed videos are skipped on rescan
+- **Hardware acceleration** — optional GPU-assisted decoding (beta, may not work with all formats)
+
+### Cache & Progress
+
+Progress is saved in a `.video-cull-cache.json` file inside the scanned folder. Plug that drive into another machine with Video Cull installed — your keep/delete decisions are still there.
+
+---
+
+## Keyboard Shortcuts
+
+### Grid & General
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl + O` | Open directory |
+| `F5` | Rescan directory |
+| `Ctrl + Z` | Undo last action |
+| `Ctrl + Backspace` | Send all marked videos to Recycle Bin |
+| `Ctrl + Shift + R` | Clear thumbnail cache |
+| `Ctrl + E` | Reveal file in Explorer |
+| `Ctrl + +` / `Ctrl + -` | Zoom cards in/out |
+| `F11` | Toggle fullscreen |
+
+### Review Mode
+
+| Shortcut | Action |
+|----------|--------|
+| `K` | Keep |
+| `D` | Mark for deletion |
+| `S` | Skip (leave status unchanged) |
+| `Z` | Undo |
+| `Space` | Play / pause |
+| `← / →` | Previous / next video (or scrub 5s when playing) |
+| `Enter` | Play in-app |
+| `Ctrl + Enter` | Open in external player |
+| `Esc` | Stop playback / exit review |
+
+All review shortcuts are fully customizable in Settings.
+
+---
+
+## Settings
+
+| Setting | Options | Default |
+|---------|---------|---------|
+| Thumbnails per video | 1, 2, 4, 6, 9 | 6 |
+| Default card scale | 0.5× – 2.0× | 1.0× |
+| Default sort | Name / Size / Date / Duration | Name |
+| Group by folder | On / Off | On |
+| Concurrent processing | Auto / 1 / 2 / 3 / 4 / 8 | Auto |
+| Limit FFmpeg to 1 thread per file | On / Off | On |
+| Intro skip delay | 0 – 60 seconds | 3s |
+| Hardware acceleration | On / Off | On |
+| Keybindings | Any single key | K / D / S / Z / Space |
+
+---
+
+## Supported Formats
+
+Plays natively in-app: `.mp4` `.webm` `.mov` `.mkv` `.m4v`
+
+All other formats (`.avi`, `.wmv`, `.flv`, `.ts`, `.mts`, etc.) open automatically in your default system player. FFmpeg generates thumbnails for anything it can decode — which is basically everything.
+
+---
+
+## Building from Source
+
+Requires Node.js 18+. FFmpeg and FFprobe are bundled — no separate install needed.
+
+```bash
+git clone https://github.com/stippie-dot/videocurl.git
+cd videocurl
+npm install
+npm run dev
+```
+
+To build the Windows installer yourself:
+
+```bash
+npm run package
+```
+
+---
+
+## Stack
+
+[Electron](https://www.electronjs.org/) · [React](https://react.dev/) · [Video.js](https://videojs.com/) · [FFmpeg](https://ffmpeg.org/) · [Zustand](https://github.com/pmndrs/zustand) · [TypeScript](https://www.typescriptlang.org/) · [Vite](https://vitejs.dev/)
+
+---
+
+## License
+
+[GNU General Public License v3.0](LICENSE)
