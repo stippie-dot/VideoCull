@@ -12,7 +12,19 @@ When you're done, one command sends everything marked for deletion to the Recycl
 
 ## Screenshots
 
-*Coming soon*
+![Welcome screen](docs/screenshots/01-welcome.png)
+
+![Grid view](docs/screenshots/02-grid-view.png)
+
+![Grid view — larger cards](docs/screenshots/03-grid-view-large.png)
+
+![Review mode — thumbnail strip](docs/screenshots/04-review-thumbnails.png)
+
+![Review mode — in-app player](docs/screenshots/05-review-player.png)
+
+![Settings — General](docs/screenshots/06-settings-general.png)
+
+![Settings — Advanced](docs/screenshots/07-settings-advanced.png)
 
 ---
 
