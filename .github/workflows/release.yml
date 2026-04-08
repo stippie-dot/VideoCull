@@ -25,9 +25,21 @@ jobs:
       - name: Build installer
         run: npm run package
 
+      - name: Extract changelog section
+        id: changelog
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          {
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Video Cull ${{ github.ref_name }}
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.notes }}
           files: release/*.exe
