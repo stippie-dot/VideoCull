@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md | tr -d '\r')
           {
             echo "notes<<EOF"
             echo "$NOTES"
@@ -46,4 +46,5 @@ jobs:
         with:
           name: Video Cull ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.notes }}
+          generate_release_notes: false
           files: release/*.exe
