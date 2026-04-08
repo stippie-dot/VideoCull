@@ -1,19 +1,20 @@
 .preview-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(15px);
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn var(--spring);
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: scale(1.02); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .preview-modal-content {
@@ -23,12 +24,20 @@
   /* Allow natural scaling without blowing up past screen */
   height: auto;
   max-height: 85vh;
-  background: #0a0a12;
-  border-radius: 12px;
-  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(5, 5, 8, 0.6);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.8), var(--glass-glow);
+  border: 1px solid var(--border-active);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
   overflow: hidden;
-  --media-border-radius: 12px;
+  --media-border-radius: var(--radius-xl);
+  animation: slideUp var(--spring);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .preview-video-container {
@@ -48,26 +57,29 @@
 
 .preview-close-btn {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 24px;
+  right: 24px;
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 100;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  transition: all var(--spring);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-sm);
 }
 
 .preview-close-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 :fullscreen .preview-video-container .video-player,
