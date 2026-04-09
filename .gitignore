@@ -33,3 +33,6 @@ build/*
 !build/installerSidebar.bmp
 release/
 testspace/
+
+# Claude Code local config
+.claude/
