@@ -10,7 +10,7 @@ When you're done, one command sends everything marked for deletion to the Recycl
 
 ---
 
-## Screenshots
+## Screenshots (Outdated as of V1.3.0)
 
 <table>
 <tr>
