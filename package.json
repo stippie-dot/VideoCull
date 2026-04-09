@@ -1,20 +1,22 @@
 {
   "name": "video-cull",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "High-performance video culling tool for managing large video collections",
   "author": "stippie dot",
   "main": "electron/main.js",
   "scripts": {
     "dev:vite": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && node -e \"setTimeout(()=>require('child_process').execSync('electron .', {stdio:'inherit',cwd:process.cwd()}),1000)\"",
+    "dev:electron": "wait-on http://localhost:5173 && node -e \"delete process.env.ELECTRON_RUN_AS_NODE; setTimeout(()=>require('child_process').execSync('electron .', {stdio:'inherit',cwd:process.cwd()}),1000)\"",
     "dev": "concurrently -k -n vite,electron -c cyan,green \"npm run dev:vite\" \"npm run dev:electron\"",
     "build": "vite build",
-    "package": "vite build && electron-builder --win"
+    "package": "vite build && electron-builder --win --publish never",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "@videojs/react": "^10.0.0-beta.13",
+    "better-sqlite3": "^11.10.0",
     "electron-log": "^5.4.3",
     "fluent-ffmpeg": "^2.1.3",
     "lucide-react": "^0.400.0",
@@ -24,12 +26,13 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-window": "^1.8.8",
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^9.0.1",
-    "electron": "^32.1.0",
+    "electron": "^32.3.3",
     "electron-builder": "^25.1.8",
     "typescript": "^6.0.2",
     "vite": "^5.4.2",
@@ -46,17 +49,18 @@
       "electron/**/*",
       "node_modules/@ffmpeg-installer/**/*",
       "node_modules/@ffprobe-installer/**/*",
-      "node_modules/fluent-ffmpeg/**/*"
+      "node_modules/fluent-ffmpeg/**/*",
+      "node_modules/better-sqlite3/**/*"
     ],
     "asarUnpack": [
-      "**/*.{exe,dll,dylib,so}",
+      "**/*.{exe,dll,dylib,so,node}",
       "node_modules/@ffmpeg-installer/**/*",
-      "node_modules/@ffprobe-installer/**/*"
+      "node_modules/@ffprobe-installer/**/*",
+      "node_modules/better-sqlite3/**/*"
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.png",
-      "publish": "never"
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,

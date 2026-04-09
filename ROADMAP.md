@@ -1,0 +1,850 @@
+# Video-Cull Roadmap
+
+All implementation decisions recorded here were made interactively. Each feature includes the
+chosen approach and relevant notes.
+
+---
+
+## Build Strategy — Minimal vs. Extended
+
+**Decision:** One codebase, one binary, one installer. Users toggle between **Minimal** and
+**Extended** mode via a config flag. No separate build targets, no separate codebases.
+
+### Mode Definitions
+
+**Minimal is the base. Extended is everything in Minimal, plus more.**
+
+| Feature | Minimal | Extended |
+|---|---|---|
+| Core culling (scan, review, grid, delete) | ✅ | ✅ |
+| Bookmarks, keyboard shortcuts, settings | ✅ | ✅ |
+| Phase 1–2 features (drag & drop, flipbook, etc.) | ✅ | ✅ |
+| Multi-directory, cache architecture | ✅ | ✅ |
+| 5-star rating, favorites | — | ✅ |
+| Duplicate comparison screen | — | ✅ |
+| Analytics screen | — | ✅ |
+| Codec export report | — | ✅ |
+
+### First-Run Mode Selection
+
+**Extended is the default.** No choice is forced on the user. On first launch, a one-time
+dismissible popup (toast or small modal) informs the user of their active mode:
+
+> **You're using Video Cull in Extended mode** — ratings, analytics, and more are enabled.
+> You can switch to Minimal (just culling, no extras) anytime in Settings.
+> [Switch to Minimal] [Got it]
+
+- "Switch to Minimal" applies the change immediately and dismisses the popup.
+- "Got it" dismisses the popup and stays in Extended.
+- The popup is shown exactly once and never again.
+- `appMode` defaults to `'extended'`. Users who want a cleaner experience can switch
+  to Minimal via Settings, the Electron menu, or the configurable keybind.
+
+### Switching Modes
+
+Three ways to switch after first run:
+
+1. **Settings modal** — a toggle at the top of the Settings panel with the same
+   explanation text as the first-run screen.
+2. **Electron menu bar** — `View → Switch to Minimal / Extended Mode`. Updates config and
+   reloads the relevant UI sections immediately (no full restart needed).
+3. **Configurable keyboard shortcut** — a keybind in the settings (default: (AI chooses a default keybind),
+   user-assigned). Toggles between modes with a brief toast notification confirming the
+   change.
+
+### Implementation Notes
+
+- Electron version is Electron V32.1.0 or v32.3.3
+- `appMode: 'minimal' | 'extended'` added to `AppSettings`.
+- Extended-only UI elements (rating stars, heart icon, nav items for Duplicates and
+  Analytics) are conditionally rendered based on `appMode`.
+- No code is removed in minimal mode — it is just hidden. This avoids maintaining two
+  component trees.
+- `appMode` defaults to `'extended'`. The first-run popup is shown when no prior choice
+  has been recorded in config.
+- First-run screen is a full-window overlay rendered in `App.tsx` before the normal UI,
+  similar to the privacy screen approach — no separate route or window needed.
+
+---
+
+## Priority 0 — Switch to SQLite
+
+The only P0 task. Do not fix the JSON cache bug first — that would be fixing a burning
+ship before scuttling it. The SQLite migration resolves the duration bug as a side effect:
+durations are regenerated from ffprobe during the first scan after migration, so no
+separate bug fix is needed.
+
+### Switch cache layer to better-sqlite3
+
+- Add `better-sqlite3` to `dependencies`. Configure `electron-builder` to unpack its
+  native binary in `asarUnpack` (same pattern as `@ffmpeg-installer` already in the build config).
+- Implement `resolveCachePath(folderPath, mode)` as the single function that all cache
+  reads and writes go through. Nothing touches cache files directly.
+- On first launch after update: detect old JSON cache files, import their `status` and
+  `bookmarks` fields into the new SQLite db, then delete the JSON files. Do not attempt
+  to migrate `durationSecs` or `thumbnails` from JSON — regenerate them from ffprobe on
+  the next scan instead. This is simpler and more reliable than fixing the JSON bug.
+- See Phase 3 for the full schema and cache location architecture.
+
+---
+
+## Phase 1 — Quick Wins (Both Builds)
+
+Small, high-impact changes. No architectural dependencies.
+
+### 1.1 Drag & Drop Folder Opening
+
+**Decision:** Drop target is the entire app window. Supports **adding** a directory to the
+current session, not just replacing it. Distinction between "add" and "open new" must be
+explicit in the UI.
+
+**Implementation notes:**
+- Listen for `dragover` / `drop` on the root `<div>` in `App.tsx`.
+- Extract the folder path from `event.dataTransfer.files[0]`.
+- **Validate in Electron main before scanning:** confirm the path exists and `stat.isDirectory()` returns true. Reject files, shortcuts (`.lnk`), and non-existent paths with a clear error message.
+- If no directory is currently open → open as new (replace).
+- If a directory is already open → prompt: **Add to current session** / **Open as new**.
+- The existing "Open folder" button in the sidebar should gain the same choice.
+- Electron `webContents` `will-navigate` is NOT needed; use the renderer-side drag events.
+
+### 1.2 Privacy Screen
+
+**Decision:** Solid black overlay covering the entire window. Toggle with **Shift+Esc**
+(hardcoded, not configurable for simplicity). Same key toggles it off.
+
+**Implementation notes:**
+- One full-screen `position: fixed` black `<div>` in `App.tsx`, conditionally rendered.
+- `isPrivate: boolean` state — local React state, no store needed.
+- Keydown listener for `Shift+Escape` at the window level.
+- Overlay sits above everything else (`z-index` higher than modals).
+- No "Video Cull" branding or text shown — pure black.
+
+### 1.3 Recent Directories
+
+**Decision:** Shown in **both** locations — sidebar dropdown and empty state — but subtle and
+non-distracting.
+
+**Implementation notes:**
+- Store `recentDirectories: string[]` (max 8) in `AppSettings` / config file.
+- On every successful directory open, prepend the path and trim to 8.
+- **Sidebar:** Small dropdown/chevron next to the current directory path. Only visible when
+  a directory is open. Clicking shows the list; each entry reopens that directory.
+- **Empty state:** Below the "Open folder" button, a compact "Recent:" section with
+  path entries. Hidden if no recent entries exist.
+- Display only the last folder segment + parent for readability
+  (e.g., `Footage / 2024` instead of the full absolute path).
+- Tooltip shows the full absolute path on hover.
+
+---
+
+## Phase 2 — Core Culling Enhancements (Both Modes)
+
+Culling workflow improvements available in Minimal and Extended.
+
+### 2.1 Hover Scrub
+
+**Decision:** Mouse position across the card width controls which thumbnail is shown — no
+animation, no timer. Moving the cursor left-to-right scrubs through the thumbnails
+instantly, exactly like the YouTube progress bar preview. **Togglable in Settings** (default: on).
+
+**Why not a 2fps flipbook:** A timed interval at 2fps looks like a broken slideshow and
+gives no sense of control. Mouse-scrub is instantaneous and feels native.
+
+**Implementation notes:**
+- Add `hoverScrub: boolean` to `AppSettings` (default `true`).
+- In `VideoCard.tsx`, on `mousemove` calculate `thumbIndex = Math.floor((mouseX / cardWidth) * thumbnails.length)`.
+- Throttle state updates with `requestAnimationFrame` — not every `mousemove` event. Set a `rafPending` flag, skip events while a frame is already queued, clear the flag inside the rAF callback. This caps re-renders at ~60fps regardless of mouse speed.
+- On `mouseleave`, reset `activeThumbIndex` to 0 (first thumbnail).
+- Only activates if `thumbnails.length > 1` and the setting is enabled.
+- When disabled, cards revert to current behaviour: static first thumbnail on hover, no interaction.
+- Works for all files regardless of codec support.
+
+### 2.2 Duration Filter (Min Only)
+
+**Decision:** Minimum duration filter only (consistent with existing minimum size filter).
+Requires the cache bug (Priority 0) to be fixed first.
+
+**Implementation notes:**
+- Add `minDurationFilter: number` (seconds, default `0`) to store state.
+- `computeFiltered` in `store.ts` gains a duration check alongside the size check.
+- Sidebar UI: same pattern as the size filter — a number input with a label.
+- Display as seconds input with a helper that shows the equivalent in `mm:ss`.
+
+### 2.3 Keyboard Navigation in Grid
+
+**Decision:** Arrow keys navigate card focus; **Enter** opens review mode at the focused
+card; **Space** cycles the card's status (pending → keep → delete → pending).
+
+**Implementation notes:**
+- Track `focusedCardId: string | null` in local `GridMode` state (no store needed).
+- Keydown listener on the grid container (tabIndex=0 so it can receive focus).
+- Arrow keys move focus by ±1 or ±columnCount depending on direction.
+- Focused card gets a visible focus ring (distinct from status colour).
+- Enter: calls `enterReviewAndPlay` with the focused card's video.
+- Escape: clears focus without leaving the grid.
+- Mouse click on a card still opens review mode (existing behaviour unchanged).
+
+### 2.4 Session Progress Bar in Review Mode
+
+**Decision:** A thin progress bar showing % complete, plus the existing counter enhanced
+with decided/remaining counts.
+
+**Implementation notes:**
+- Progress = `(keep + delete)` out of `total` in the current filter (not just position).
+- Bar renders above the review content area as a thin line (4px, accent colour).
+- Counter line becomes: `12 / 47 — 8 decided, 39 remaining`.
+- No pace or time estimates (avoid anxiety-inducing metrics).
+- Both values derived from existing `stats` in the store — no new state.
+
+### 2.5 Batch Selection in Grid
+
+**Decision:** Shift+click to multi-select cards. A floating action bar appears at the bottom
+when ≥1 card is selected, with Keep / Delete / Clear actions.
+
+**Deletion safety:** All delete operations (single and batch) use Electron's
+`shell.trashItem(path)` — files go to the OS Recycle Bin, not permanently deleted via
+`fs.unlink`. If `shell.trashItem` fails (file too large for Recycle Bin on some systems),
+warn the user explicitly before proceeding with permanent deletion. This applies everywhere
+in the app that deletes files.
+- **Path validation:** Before calling `shell.trashItem` on any path, confirm it starts with one of the currently loaded `directories`. Reject anything outside with an error log and skip that file.
+- **Concurrency:** Batch deletes run up to 5 `shell.trashItem` calls in parallel using a concurrency-limited `Promise.all`. Fast without hammering the filesystem.
+
+**Implementation notes:**
+- `selectedIds: Set<string>` in local `GridMode` state.
+- First click: if Shift is held and nothing is selected, start selection.
+- Shift+click on an already-selected card: deselect it.
+- Clicking a card without Shift while in selection mode: deselect all, open review
+  (standard behaviour). A visual selection indicator on the card avoids confusion.
+- Floating bar: fixed at bottom of grid, shows count + Keep / Delete / Clear.
+- Keep/Delete wraps all SQLite writes in a single transaction (`BEGIN`/`COMMIT`) and calls the store's `set()` once with the full updated array — not in a loop. One re-render for the whole batch regardless of selection size.
+- Escape key clears selection.
+
+### 2.6 "Review This Folder" Button on Folder Headers
+
+**Decision:** Each folder group header in the grid gets a **▶ Review** button. Clicking it
+enters review mode scoped to only that folder's videos.
+
+**Implementation notes:**
+- The folder header row in `GridMode.tsx` already has label, count, and size. Add a small
+  button on the right.
+- Clicking sets a temporary filter to that folder's path, enters review mode at index 0.
+- On exit from review mode, restore the previous filter state.
+- This means `GridMode` needs to pass a `onReviewFolder(folderPath: string)` callback
+  to the row renderer, and `App.tsx` handles the scoping logic.
+
+### 2.7 Export Decisions as HTML
+
+**Decision:** A styled, self-contained `.html` report. Triggered from a button in the
+sidebar (below the delete action). Saves to a user-chosen location via file dialog.
+
+**Implementation notes:**
+- Button label: "Export Report" or similar (small, not prominent).
+- Electron `ipcMain` handler: `exportReport(videos, dirPath)`.
+- Output: single `.html` file with inline CSS (no external dependencies).
+- **All user data (filenames, paths, codec strings) must be passed through `escapeHtml()` before insertion into the template.** A filename like `<script>alert(1)</script>.mp4` would otherwise execute when the report is opened in a browser. The utility replaces `& < > " '` with HTML entities. Zero performance impact.
+- Structure:
+  - Header: directory path, export date, summary counts and sizes.
+  - Three sections: Keep / Delete / Pending — each a styled table with filename,
+    size, duration, date, status badge.
+  - Optional: embed the first thumbnail as a base64 `<img>` per row — off by default.
+    Warn users clearly: 2,000 videos with thumbnails can produce a 50–150MB HTML file
+    that browsers will struggle to render. Show an estimated file size before confirming.
+- Default filename: `videocull-report-YYYY-MM-DD.html`.
+
+---
+
+## Phase 3 — Cache Architecture & Multi-Directory
+
+This is an architectural change that must be designed carefully before implementation.
+
+### 3.1 Per-Folder Cache with Smart Subfolder Reuse
+
+**Decision:** Cache stored **inside each folder** on the same drive as the videos
+(portable/external drive support). Smart reuse: when scanning a parent folder, subfolders
+with existing caches are loaded from cache rather than re-scanned.
+
+**Current state:** One JSON cache file stored in the scanned directory root.
+
+**Cache location strategy — user choice in Settings:**
+
+Three modes, selectable in Settings under a "Cache storage" option:
+
+**Option A — Per-drive**
+Cache stored once per drive, in a configurable location on that drive. No subfolder
+clutter. Portable/external drives work — the cache travels with the drive, not the machine.
+
+Default path pattern: `{drive}:\Users\{username}\.videocull\cache\`
+- On Windows, `{username}` comes from `os.userInfo().username`.
+- If `Users\{username}\` doesn't exist on the drive (e.g. a bare external), fall back
+  to `{drive}:\.videocull\cache\`.
+
+Users can override the path pattern per-drive in Settings via a folder picker. The chosen
+path is stored in config as a map of drive letter to custom path:
+```json
+"perDriveCachePaths": {
+  "C:": "C:\\Users\\Matthijs\\.videocull\\cache",
+  "D:": "D:\\MyCustomCacheFolder"
+}
+```
+- Survives video files being moved within the same drive.
+- Cache is lost only if the drive letter changes (uncommon for labelled drives).
+
+**Option B — Centralised (default)**
+All cache stored in a single directory. Default location is `%APPDATA%\Video-Cull\cache\`,
+but users can choose a custom path via a folder picker in Settings.
+```
+%APPDATA%\Video-Cull\cache\      ← default, user can change this
+  C__Users_Matthijs_Videos_Footage.db
+  D__Footage.db
+```
+Downside: cache is lost if videos move to a different drive or the machine changes.
+
+**Option C — Distributed (power user / NAS) — ⚠️ NOT RECOMMENDED**
+Each folder gets its own `.videocull/` hidden subdirectory. Maximum portability — cache
+is colocated with the exact videos it describes. Can cause clutter in large folder trees. 
+*Note: Switching back from Distributed to Centralised or Per-drive could be impossible without losing cache data if the tracking index gets lost or if drives are disconnected.*
+```text
+D:\Footage\2024\
+  .videocull\
+    cache.db
+  clip001.mp4
+D:\Footage\2023\
+  .videocull\
+    cache.db
+```
+
+The setting is: `cacheLocation: 'per-drive' | 'centralised' | 'distributed'` in `AppSettings`.
+**Default: `'centralised'`** — lowest friction for most users on a single machine.
+
+**The distributed cache index:**
+Regardless of the active cache mode, the app always maintains a small index file at
+`%APPDATA%\Video-Cull\distributed-index.json`. Every time a distributed cache (Option C)
+is written or updated, its folder path is recorded in this index. This solves the core
+problem of migrating *away* from distributed mode — without it, the app has no way of
+knowing where all the `.videocull/` folders are.
+```json
+{
+  "knownDistributedPaths": [
+    "D:\\Footage\\2024",
+    "D:\\Footage\\2023",
+    "E:\\Archive\\Travel"
+  ]
+}
+```
+The index is updated on every cache write, and stale entries (folder no longer exists)
+are pruned on app startup.
+
+**Cache migration when switching modes:**
+
+Migration complexity differs depending on direction:
+
+*A or B → C (centralised/per-drive to distributed):*
+Straightforward. The source caches are keyed by folder path, so the app knows exactly where to create the `.videocull/` subdirectories. Move the `.db` files and `thumbs\` folders to the target `.videocull` folders, then update the index.
+
+*C → A or B (distributed to centralised/per-drive):*
+Uses the distributed index as the source of truth. For each path in the index: if the folder exists, move the `.videocull\cache.db` and `.videocull\thumbs\` to the new roots. If missing, warn the user. Clear the index when done.
+
+*A ↔ B (per-drive ↔ centralised):*
+Both modes are centralised structures (different root paths, same file layout), so
+migration is a simple folder move. All `.db` files and `thumbs\` folders are copied to the new root and originals deleted.
+
+All mode switches show a progress modal. Dialog options:
+- **"Migrate existing cache"** (recommended)
+- **"Start fresh"** — discards cache, videos re-scanned on next open
+- **"Cancel"**
+
+**Multi-directory session:**
+- The store's `directory: string | null` becomes `directories: string[]`.
+- Each directory's cache is loaded independently.
+- Videos from multiple directories shown together in the grid.
+- Folder headers show the root directory as a prefix when multiple roots are loaded.
+- "Open new" clears all directories and starts fresh. "Add" appends to the list.
+
+**Cache schema:**
+```sql
+-- Main video metadata. Never contains thumbnail data.
+CREATE TABLE videos (
+  id TEXT PRIMARY KEY,
+  filename TEXT NOT NULL,
+  path TEXT UNIQUE NOT NULL,
+  size_bytes INTEGER,
+  file_date INTEGER,
+  metadata_date INTEGER,
+  duration_secs REAL,
+  fps REAL,
+  duplicate_hash TEXT,       -- fast pseudo-hash: size + first 1MB + last 1MB chunk
+  status TEXT DEFAULT 'pending',
+  rating INTEGER DEFAULT 0,
+  favorite INTEGER DEFAULT 0,
+  compatible INTEGER DEFAULT 1, -- 0 = not playable in built-in player
+  video_codec TEXT,
+  audio_codec TEXT,
+  width INTEGER,
+  height INTEGER,
+  bookmarks TEXT,            -- JSON array of seconds
+  os_thumbnail_path TEXT,    -- RELATIVE path from the cache root (e.g., "thumbs/vid1/os.jpg")
+  updated_at INTEGER
+);
+
+-- Thumbnail file paths only. Actual image files stored on disk in the cache folder.
+-- Only the paths are queried; image loading happens in the renderer via file:// URLs.
+CREATE TABLE thumbnails (
+  video_id TEXT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  idx INTEGER NOT NULL,      -- 0-based position in the strip
+  file_path TEXT NOT NULL,   -- RELATIVE path from the cache root (e.g., "thumbs/vid1/thumb.jpg")
+  PRIMARY KEY (video_id, idx)
+);
+```
+
+**Key schema decisions:**
+- `thumbnails` is a separate table storing only file paths. Grid queries run
+  `SELECT * FROM videos` with zero image data. Thumbnail images are `.jpg/.webp` files
+  on disk. The renderer constructs the absolute `file://` URLs at runtime by prepending the `cacheRootDir` to the relative `file_path`.
+- **Paths are RELATIVE:** `file_path` and `os_thumbnail_path` store relative paths. This is mandatory so the database remains 100% portable when moving the cache across drives or changing modes.
+- Thumbnail files are stored in the cache directory alongside the `.db` file.
+- `fps` captured from ffprobe alongside codec/resolution at zero extra cost.
+- `duplicate_hash` column is reserved for future use — always `NULL` for now. Duplicate
+  detection is skipped until a dedicated feature is scoped. The column stays in the schema
+  to avoid a migration later.
+- `compatible` flag set via a pre-computed codec→boolean map built at app startup.
+  `canPlayType` is called once per codec type (~10 calls total), not once per video.
+  During scanning, the main process looks up each video's codec in the map — no IPC per video.
+
+**SQLite implementation rule — no exceptions:**
+All SQL queries use `db.prepare()` with `?` bound parameters. No string interpolation or
+concatenation in query construction anywhere in the codebase. Enforced at code review.
+
+**Bulk operations use transactions — chunked, not monolithic:**
+Any operation inserting or updating more than one row (initial scan, JSON migration, batch
+status updates) wraps all writes in `db.transaction()` calls. This is 100x faster than
+autocommit and prevents partial writes on crash.
+
+**Critical:** `better-sqlite3` is 100% synchronous. A single large transaction that inserts
+thousands of rows blocks the V8 thread for its entire duration. IPC progress messages sent
+inside the transaction are queued but never flushed to the renderer until the transaction
+commits — the UI appears frozen, then jumps to 100% complete. The fix is chunked transactions
+with an explicit event loop yield between chunks:
+
+```javascript
+// WRONG — blocks event loop; IPC progress messages never reach the renderer mid-transaction:
+const insertAll = db.transaction((videos) => {
+  for (let i = 0; i < videos.length; i++) {
+    insert.run(videos[i]);
+    if (i % 100 === 0) webContents.send('progress', i); // queued, not sent
+  }
+});
+insertAll(videos);
+
+// CORRECT — yields event loop between chunks; progress flushes before the next chunk starts:
+const chunkSize = 500;
+const insertChunk = db.transaction((chunk) => {
+  for (const v of chunk) insert.run(v);
+});
+for (let i = 0; i < videos.length; i += chunkSize) {
+  insertChunk(videos.slice(i, i + chunkSize));
+  webContents.send('progress', i);
+  await new Promise(resolve => setImmediate(resolve)); // yield event loop
+}
+```
+
+Chunk size of 500 rows balances transaction overhead against yield frequency. Adjust based
+on measured performance; 100–1000 is the practical range for this workload.
+
+**Cache path writability check:**
+When a user sets a custom cache path (Option A per-drive or Option B custom location),
+the app writes a small test file to the chosen directory before saving the setting. If the
+write fails, the setting is rejected with a clear error. This catches network shares,
+read-only paths, and permission issues before they cause silent data loss.
+
+**Thumbnail file location — thumbnails always live alongside the `.db` file:**
+
+Thumbnail `.jpg` files are part of the cache, not part of the video folder. They move
+wherever the DB moves. The exact location depends on the active cache mode:
+
+| Cache mode | DB location | Thumbnail location |
+|---|---|---|
+| Centralised (default) | `%APPDATA%\Video-Cull\cache\<folder>.db` | `%APPDATA%\Video-Cull\cache\thumbs\<videoId>\` |
+| Per-drive | `{drive}:\.videocull\cache\<folder>.db` | `{drive}:\.videocull\cache\thumbs\<videoId>\` |
+| Distributed | `{folder}\.videocull\cache.db` | `{folder}\.videocull\thumbs\<videoId>\` |
+
+The `thumbs\` directory is always a sibling of the `.db` file in the cache root.
+
+**Thumbnail generation (P3 onwards):** `processor.js` writes new thumbnails directly to
+the cache directory (`cacheRootDir/thumbs/<videoId>/`), never to the video folder.
+The `cacheRootDir` is passed down from `main.js` (same value used for the DB path).
+
+**Thumbnail migration (on first P3 launch):** Any existing `.video-cull-thumbs` folders
+inside video directories (written by P0/P1/P2) must be relocated to the new cache location.
+This happens automatically during the first scan after upgrade:
+1. For each video in the DB, check if its thumbnail paths point to the old `.video-cull-thumbs` location.
+2. Move the files to `cacheRootDir/thumbs/<videoId>/` and update the `thumbnails` table with the new paths. *(Note: If the active mode is Option C/Distributed, the cacheRootDir is `.videocull/`, so this step is just a fast local directory rename from `.video-cull-thumbs` to `.videocull/thumbs`)*.
+3. Once all thumbnails for a video are moved, delete the now-empty `.video-cull-thumbs` folder from the video directory.
+4. If a move fails (e.g. cross-device), fall back to copy + delete. If that also fails, mark for regeneration.
+
+This migration runs silently in the background after the scan completes and does not block the UI.
+
+**When switching cache modes (A ↔ B):** Thumbnail files must be physically moved alongside
+the `.db` files as part of the mode-switch migration. The migration dialog ("Migrate / Start
+Fresh / Cancel") covers both DB files and their accompanying `thumbs\` directories.
+
+---
+
+## Phase 4 — Extended Mode Additions
+
+Features only visible when Extended mode is active. Extended builds on everything in Phases 1–3.
+
+### 4.1 5-Star Rating
+
+**Decision:** Shown and interactive on the video card in grid mode, and in review mode
+below the meta row.
+
+**Implementation notes:**
+- Add `rating: 0 | 1 | 2 | 3 | 4 | 5` to the `Video` type (default `0`).
+- `setVideoRating(videoId, rating)` action in the store, saves to cache.
+- Card: 5 star icons in the card footer. Click sets rating. 0 = no stars shown until hover.
+- Review mode: same 5-star row below filename/meta.
+- Sidebar: add filter chip "★ Rated only" (any rating > 0).
+- Sort option: "Sort by rating."
+
+### 4.2 Heart / Favorites Toggle
+
+**Decision:** On the card and in review mode. Filterable from the sidebar.
+
+**Implementation notes:**
+- Add `favorite: boolean` to the `Video` type (default `false`).
+- `toggleFavorite(videoId)` action in the store.
+- Card: heart icon in the top-right corner of the card (subtle when off, filled when on).
+- Review mode: heart toggle button next to the filename.
+- Sidebar filter: "♥ Favorites" filter option.
+- Different semantic from Keep/Delete — it means "best of my kept videos", not a
+  culling decision. Rating and Favorites coexist independently.
+
+### 4.3 Resolution + Codec on Video Type
+
+**Decision:** Captured during thumbnail generation (ffprobe already runs) — zero added cost.
+Displayed as small badges on the card and in the review mode meta row.
+
+**Implementation notes:**
+- Add to `Video` type: `videoCodec: string | null`, `audioCodec: string | null`,
+  `width: number | null`, `height: number | null`.
+- Capture in the Electron thumbnail generation code (alongside existing duration/date
+  extraction from ffprobe output).
+- Resolution badge logic:
+  - width ≥ 3840 → `4K`
+  - width ≥ 1920 → `1080p`
+  - width ≥ 1280 → `720p`
+  - otherwise → `{height}p` or omit
+- Codec badge: display codec name (e.g., `H.265`, `AV1`, `H.264`).
+- FPS badge: always displayed (e.g., `24fps`, `60fps`, `120fps`). Captured from ffprobe
+  alongside codec at zero extra cost.
+- **ffprobe returns FPS as a rational fraction string, not a float.** `r_frame_rate` and
+  `avg_frame_rate` return values like `"60/1"`, `"30000/1001"` (≈29.97), or
+  `"24000/1001"` (≈23.976). The ingest code must split on `/` and compute
+  `numerator / denominator` before storing in the `fps REAL` column. Use `avg_frame_rate`
+  as the primary source; fall back to `r_frame_rate` if `avg_frame_rate` is missing or
+  `"0/0"`. Round to 2 decimal places for display (e.g. `29.97fps`, not `29.970329970329972fps`).
+- Card: small badges below the thumbnail strip, left-aligned. Order: resolution, codec, fps.
+- Review meta row: appended after date.
+- Sorting: add "Sort by resolution" and "Sort by fps" options.
+
+### 4.4 Storage Analytics Screen
+
+**Decision:** Dedicated screen accessible from the sidebar. Not always-visible.
+
+**Implementation notes:**
+- Sidebar nav item: "Analytics" (or chart icon).
+- Requires resolution + codec on `Video` type (Phase 4.3 must be done first).
+- Analytics computed via SQLite aggregate queries (`SUM`, `GROUP BY`) — not from the
+  in-memory Zustand store. Fast even at 10,000+ videos.
+- Stats to display:
+  - Total library size and video count.
+  - Size breakdown by codec (H.264 / H.265 / AV1 / other) — bar chart or table.
+  - Size breakdown by resolution tier (4K / 1080p / 720p / other).
+  - Size breakdown by folder (top 10).
+  - Size breakdown by year (from `metadataDate`).
+  - Potential savings: "X GB could be freed by deleting marked videos."
+- Use simple CSS bar charts — no charting library needed.
+
+### 4.5 Incompatible Codec Indicator
+
+**Decision:** Flag videos that can't play in the built-in player with a visible badge.
+No proxy generation — users play incompatible files in the external player, which already
+works today.
+
+**Compatibility detection:** Use `HTMLVideoElement.canPlayType(mimeType)` in the renderer
+— not hardcoded codec strings from ffprobe. Chromium's media engine gives the authoritative
+answer, accounting for platform-specific support and Electron build variations. The
+`compatible` flag in the SQLite schema is set from this check, not from ffprobe output.
+ffprobe still captures codec name/resolution for display purposes.
+
+**canPlayType requires specific MIME strings.** Passing only the container (e.g.
+`video/mp4`) returns `"maybe"` which is useless. The codec parameter must be included.
+Use ffprobe to get both container format and codec name, then map them to the correct
+MIME+codec string before calling `canPlayType`:
+
+```
+ffprobe output          → canPlayType string
+────────────────────────────────────────────────────────
+mp4 + h264              → video/mp4; codecs="avc1.42E01E"
+mp4 + hevc/h265         → video/mp4; codecs="hvc1"
+mp4 + av1               → video/mp4; codecs="av01.0.00M.08"
+webm + vp8              → video/webm; codecs="vp8"
+webm + vp9              → video/webm; codecs="vp9"
+webm + av1              → video/webm; codecs="av01.0.00M.08"
+ogg + theora            → video/ogg; codecs="theora"
+mov + prores            → video/quicktime; codecs="ap4h"  ← likely "no"
+avi + mpeg4/divx        → video/x-msvideo                ← likely "no"
+```
+
+Return values from `canPlayType`: `"probably"` = supported, `"maybe"` = uncertain
+(treat as compatible to avoid false positives), `""` (empty string) = not supported.
+Only `""` sets `compatible = 0` in SQLite. Build the mapping table as a shared constant
+in the Electron main process so it can be unit tested independently of the renderer.
+
+**Implementation notes:**
+- During thumbnail generation, test playability via IPC: renderer calls `canPlayType`,
+  result stored in `compatible` column.
+- No badge on individual cards — keeps cards clean.
+- In review mode, the Play button is replaced by "Open in external player" for incompatible
+  files — no confusing silent failure.
+- Toolbar shows a count of incompatible videos; clicking it filters the grid to show only
+  those files.
+- HTML export: a text-only report (no embedded thumbnails) listing filename, path, codec,
+  resolution, and file size for all incompatible videos. Triggered from the toolbar count
+  button or via a menu action. Same HTML generation approach as the decisions export (Phase 2.7).
+
+### 4.6 "Next Undecided" Jump Navigation
+
+**Decision:** A keyboard shortcut in review mode that jumps directly to the next video
+with `status = 'pending'`, skipping already-decided videos.
+
+**Implementation notes:**
+- Keybind: configurable, suggested default `Tab`.
+- Scans forward from the current `reviewIndex` through `filteredVideos` for the next
+  pending video. Wraps around to the beginning if none found after current position.
+- Shows a toast if there are no pending videos remaining.
+- Pairs naturally with the progress bar (Phase 2.4) — users can see how many remain and
+  jump through them efficiently.
+
+### 4.7 Global Mute Toggle
+
+**Decision:** A global mute toggle that suppresses all audio in both grid hover and review
+mode. Persisted across sessions.
+
+**Implementation notes:**
+- Add `globalMute: boolean` to `AppSettings` (default `false`).
+- Configurable keybind, suggested default `M`.
+- When muted, all `<video>` elements have `muted` attribute set. The mute state is also
+  shown as a small persistent icon in the toolbar so users know audio is suppressed.
+
+
+---
+
+## Phase 5 — In-App Documentation
+
+As the feature set grows, users need a discoverable reference. Accessible from the
+Electron menu bar (`Help → Documentation`) and a `?` button in the app toolbar.
+
+### 5.1 Documentation Delivery
+
+**Decision:** In-app modal (no separate Electron window, no extra Chromium process). The
+modal renders documentation content directly in the main app window. A prominent link at
+the top points users to the hosted docs on GitHub for the most up-to-date version.
+
+**Implementation notes:**
+- `Help → Documentation` in the Electron menu bar and a `?` icon in the toolbar open the
+  docs modal over the current view.
+- Modal header: "Documentation — for the latest version, visit [GitHub ↗]" with a
+  `shell.openExternal(githubDocsUrl)` link.
+- Content is bundled with the app (Markdown compiled to HTML at build time) so it works
+  offline and matches the shipped version.
+- The keyboard shortcut reference page renders the user's actual current keybinds from
+  the store, not hardcoded defaults.
+- Modal is dismissible with Escape or a close button.
+
+### 5.2 Documentation Structure
+
+```
+Documentation
+├── Getting Started
+│   ├── What is Video Cull?
+│   ├── Minimal vs. Extended mode
+│   └── Opening your first folder
+├── Grid View
+│   ├── Navigating the grid
+│   ├── Card actions (keep, delete, batch select)
+│   ├── Sorting and filtering
+│   └── Grouping by folder
+├── Review Mode
+│   ├── Keyboard shortcuts
+│   ├── Playback controls
+│   └── Bookmarks
+├── Extended Features
+│   ├── Ratings and Favorites
+│   ├── Duplicate comparison
+│   └── Analytics
+├── Settings Reference
+│   ├── All settings explained
+│   ├── Keyboard shortcut customisation
+│   └── Cache storage modes
+└── FAQ
+    ├── Why are my durations missing after reload?
+    ├── Which video formats are supported?
+    └── How do I move my cache to a new drive?
+```
+
+### 5.3 Keyboard Shortcut Reference Page
+
+A dedicated page in the docs that renders the user's **current** keybind configuration
+(read from the store at open time) rather than hardcoded defaults. This means the docs
+always reflect what the user has actually configured.
+
+### 5.4 Authoring
+
+- Docs written as Markdown files in a `docs/` directory in the repo.
+- A build script (invoked as part of `vite build`) compiles them to a single HTML file
+  with a sidebar nav and inline search.
+- No external doc framework needed — a small custom build script is sufficient given the
+  limited page count.
+
+---
+
+## Skipped Features (Recorded for Future Reference)
+
+| Feature | Reason skipped |
+|---|---|
+| Duplicate comparison screen | Removed — other apps handle this; duplicate_hash column reserved in schema for future |
+| "Maybe" third status | Skip is sufficient for the culling workflow |
+| Tag system | Too much visual clutter for now |
+| Video notes | Skipped in favour of rating + favorites |
+| m3u8 → mp4 conversion | Out of scope for now |
+| Folder watch (auto-detect) | Skip until multi-dir is mature |
+| Volume persistence | Not needed |
+| Auto-advance timer | Creates anxiety, causes mistakes |
+| Torrent downloading | Different app entirely |
+| AI quality scoring | Heavy deps, unreliable for creative content |
+
+---
+
+## Development Process
+
+### Branch Strategy
+
+One feature branch per phase. Branch off the previous phase branch, not always off main.
+Merge into main only when the phase is solid and the app is fully usable without future phases.
+
+```
+main                   ← stable, always launchable, tagged at each release
+  └─ p0-sqlite
+       └─ p1-quick-wins
+            └─ p2-culling-enhancements
+                 └─ p3-cache-architecture
+                      └─ p4-extended-mode
+                           └─ p5-documentation
+```
+
+Never work directly on main. Never bump the version mid-branch.
+
+### Commit Frequency
+
+Commit at logical stopping points — not by time. Good triggers:
+- A single feature works end-to-end (even if rough)
+- You are about to touch a different file domain
+- Before any risky refactor
+- When you have just fixed a bug that was annoying to track down
+
+Avoid committing half-migrated states where two systems coexist but neither fully works.
+
+### Version Map
+
+| Phase | Version | Notes |
+|---|---|---|
+| P0 — SQLite migration | `1.4.0` | Invisible to users; JSON auto-migrated |
+| P1 — Quick wins | `1.5.0` | Drag & drop, privacy screen, recent dirs |
+| P2 — Culling enhancements | `1.6.0` | Hover scrub, batch select, HTML export, etc. |
+| P3 — Cache architecture | `1.7.0` | Per-drive mode, multi-directory, migration dialog |
+| P4 — Extended mode | `2.0.0` | Ratings, analytics, codec — major milestone |
+| P5 — Documentation | `2.1.0` | Additive, ships with or after P4 |
+
+Version bump happens in one commit, at the moment of merging the phase branch into main.
+Tag every release: `git tag v1.4.0 && git push origin v1.4.0`.
+
+### Each Version Must Work Standalone
+
+Every merged version must be fully usable without any future phase installed.
+Before merging a phase branch into main, verify:
+1. App opens a real folder and scans without errors
+2. Status changes persist after restart
+3. Build packages without warnings (`npm run package`)
+4. No half-finished UI from the next phase is accidentally visible
+
+The one architectural rule that makes this possible: **define the full SQLite schema in P0.**
+All columns needed by P4 (`rating`, `favorite`, `compatible`, `video_codec`, `fps`, etc.)
+are created from day one. Unused columns stay `NULL` at their defaults. No schema migration
+is needed when P4 ships — the table already has the columns.
+
+### CHANGELOG
+
+Update `CHANGELOG.md` in the same commit as the version bump. Format:
+
+```markdown
+## [1.4.0] — YYYY-MM-DD
+### Changed
+- Cache layer switched from JSON to SQLite (better-sqlite3)
+- Video durations now accurate and stable across reloads
+
+### Migration
+- Existing .video-cull-cache.json files are automatically imported on first launch
+- Status and bookmarks preserved; thumbnails regenerated on next scan
+```
+
+---
+
+## Progress Tracker
+
+Update the status column as work completes. Merge date recorded when phase lands on main.
+
+| Phase | Status | Version | Merged |
+|---|---|---|---|
+| P0 — SQLite migration | ✅ Merged to main | `1.4.0` | 2026-04-10 |
+| P1 — Quick wins | ⬜ Not started | `1.5.0` | — |
+| P2 — Culling enhancements | ⬜ Not started | `1.6.0` | — |
+| P3 — Cache architecture | ⬜ Not started | `1.7.0` | — |
+| P4 — Extended mode | ⬜ Not started | `2.0.0` | — |
+| P5 — Documentation | ⬜ Not started | `2.1.0` | — |
+
+Status key: ⬜ Not started · 🔄 In progress · ✅ Merged to main
+
+---
+
+## Implementation Order (Suggested)
+
+```
+P0  Switch cache to better-sqlite3 — resolves duration bug as side effect, no separate fix needed
+
+P1  Drag & drop (Phase 1.1)
+P1  Privacy screen (Phase 1.2)
+P1  Recent directories (Phase 1.3)
+
+P2  Duration filter (Phase 2.2)
+P2  Hover scrub (Phase 2.1)
+P2  Keyboard grid nav (Phase 2.3)
+P2  Session progress bar (Phase 2.4)
+P2  Batch selection + shell.trashItem deletion safety (Phase 2.5)
+P2  Folder review button (Phase 2.6)
+P2  Export decisions HTML (Phase 2.7)
+
+P3  Cache architecture + location setting + per-drive custom paths (Phase 3.1)
+P3  Multi-directory session support (Phase 3.1)
+P3  First-run mode banner + mode switching (Build Strategy)
+
+P4  Resolution + codec + fps on Video type (Phase 4.3) ← enables 4.4 and 4.5
+P4  5-star rating (Phase 4.1)
+P4  Favorites toggle (Phase 4.2)
+P4  Analytics screen (Phase 4.4)
+P4  Incompatible codec indicator + badge (Phase 4.5)
+P4  "Next Undecided" jump navigation (Phase 4.6)
+P4  Global mute toggle (Phase 4.7)
+
+P5  Documentation via shell.openExternal (Phase 5)
+```
