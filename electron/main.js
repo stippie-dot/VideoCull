@@ -4,11 +4,13 @@ const { pathToFileURL } = require('url');
 const fs = require('fs/promises');
 const { scanDirectory } = require('./scanner');
 const { processVideos, cancelProcessing } = require('./processor');
+const cache = require('./cache');
 const log = require('./logger');
 
 const isDev = !app.isPackaged;
 let mainWindow;
 let currentScanDir = null;
+let cacheRootDir = null; // set after app ready
 
 // Set of known valid video paths, populated on every scan-directory call.
 // All IPC handlers that accept file paths validate against this set.
@@ -74,6 +76,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.whenReady().then(() => {
+  cacheRootDir = path.join(app.getPath('userData'), 'cache');
+
   protocol.handle('thumb', async (request) => {
     // thumb:///D:/path/to/.video-cull-thumbs/id/thumb.jpg
     let filePath = decodeURIComponent(request.url.slice('thumb:///'.length));
@@ -90,8 +94,8 @@ app.whenReady().then(() => {
     if (!currentScanDir) {
       return new Response('Access Denied', { status: 403 });
     }
-    const expectedThumbDir = path.join(currentScanDir, THUMB_DIR);
-    if (!await isPathWithinDir(filePath, expectedThumbDir)) {
+    const thumbCacheDir = path.join(cacheRootDir, 'thumbs');
+    if (!await isPathWithinDir(filePath, thumbCacheDir)) {
       return new Response('Access Denied', { status: 403 });
     }
     
@@ -289,37 +293,32 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// ── Cache helpers ───────────────────────────────────────────────────────
-const CACHE_FILE = '.video-cull-cache.json';
+app.on('before-quit', () => {
+  cache.closeDb();
+});
+
+// ── Cache constants ──────────────────────────────────────────────────────
+// Legacy directory name — only used to locate old thumbnails during migration.
+// New thumbnails are written to cacheRootDir/thumbs/ from P0 onwards.
 const THUMB_DIR = '.video-cull-thumbs';
 
-async function loadCache(dirPath) {
-  try {
-    const raw = await fs.readFile(path.join(dirPath, CACHE_FILE), 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+// ── Thumbnail path helpers ───────────────────────────────────────────────
+// The DB always stores paths relative to cacheRootDir (e.g. 'thumbs/id/thumb_01.jpg').
+// The renderer always receives absolute paths. main.js converts at the boundary.
+
+function thumbAbsolute(relPath) {
+  if (!relPath || path.isAbsolute(relPath)) return relPath; // already absolute (legacy)
+  return path.join(cacheRootDir, relPath);
 }
 
-async function saveCache(dirPath, videos) {
-  const cacheData = {
-    lastScanned: new Date().toISOString(),
-    videos: videos.map((v) => ({
-      id: v.id,
-      filename: v.filename,
-      path: v.path,
-      sizeBytes: v.sizeBytes,
-      durationSecs: v.durationSecs,
-      date: v.date ?? v.modifiedAt,
-      metadataDate: v.metadataDate || null,
-      status: v.status,
-      thumbnails: v.thumbnails,
-      duplicateHash: v.duplicateHash || null,
-      bookmarks: v.bookmarks || [],
-    })),
-  };
-  await fs.writeFile(path.join(dirPath, CACHE_FILE), JSON.stringify(cacheData, null, 2));
+function thumbRelative(absPath) {
+  if (!absPath || !path.isAbsolute(absPath)) return absPath; // already relative
+  const rel = path.relative(cacheRootDir, absPath);
+  return rel.startsWith('..') ? absPath : rel; // keep absolute if outside cacheRootDir
+}
+
+function videoForDb(v) {
+  return { ...v, thumbnails: v.thumbnails?.map(thumbRelative) ?? [] };
 }
 
 // ── IPC Handlers ────────────────────────────────────────────────────────
@@ -344,36 +343,107 @@ ipcMain.handle('scan-directory', async (_event, dirPath, includeSubfolders) => {
   }
 
   currentScanDir = dirPath;
-  const cache = await loadCache(dirPath);
-  const cachedMap = {};
-  if (cache && cache.videos) {
-    cache.videos.forEach((v) => {
-      cachedMap[v.id] = v;
-    });
+
+  // Open SQLite DB for this directory (creates schema if first time)
+  const db = cache.openDb(dirPath, cacheRootDir);
+
+  // Import old JSON cache if present (first launch after update)
+  await cache.migrateJsonIfNeeded(dirPath, db);
+
+  // Load existing cache entries for merging
+  const cachedMap = cache.loadCacheMap(db);
+
+  // Ensure the new thumbnail cache directory exists
+  const newThumbRoot = path.join(cacheRootDir, 'thumbs');
+  await fs.mkdir(newThumbRoot, { recursive: true });
+
+  // Migrate any old .video-cull-thumbs thumbnails into the cache directory.
+  // Runs once per folder after upgrade; subsequent scans are no-ops.
+  const oldThumbBase = path.join(dirPath, THUMB_DIR);
+  const migrations = [];
+  for (const [id, cached] of cachedMap) {
+    if (!cached.thumbnails?.length) continue;
+    if (!path.isAbsolute(cached.thumbnails[0])) continue; // already relative — skip
+    const oldVideoThumbDir = path.dirname(cached.thumbnails[0]);
+    migrations.push({ id, cached, oldVideoThumbDir });
   }
 
-  const thumbDir = path.join(dirPath, THUMB_DIR);
-  await fs.mkdir(thumbDir, { recursive: true });
+  // To keep UI loading fast, process folder migrations in concurrent batches
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < migrations.length; i += BATCH_SIZE) {
+    const batch = migrations.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async ({ id, cached, oldVideoThumbDir }) => {
+      const newVideoThumbDir = path.join(newThumbRoot, id);
+      let success = false;
+      try {
+        await fs.rename(oldVideoThumbDir, newVideoThumbDir);
+        success = true;
+      } catch (err) {
+        // EXDEV means cross-device (moving from D: to C:). Fallback to full copy.
+        // ENOENT means source doesn't exist anymore. EEXIST means target already exists.
+        if (err.code === 'EXDEV' || err.code === 'EEXIST' || err.code === 'ENOTEMPTY') {
+          try {
+            await fs.cp(oldVideoThumbDir, newVideoThumbDir, { recursive: true, force: true });
+            await fs.rm(oldVideoThumbDir, { recursive: true, force: true }).catch(() => {});
+            success = true;
+          } catch (e) {
+            // copy failed
+          }
+        } else if (err.code === 'ENOENT') {
+          // Interrupted migration: source is gone, but the database wasn't updated yet. 
+          // Check if the files made it to the new destination.
+          try {
+            const stat = await require('fs/promises').stat(newVideoThumbDir);
+            if (stat.isDirectory()) success = true; 
+          } catch (e) {
+            // Both source and destination missing. Thumbnails are dead.
+          }
+        }
+      }
+      if (success) {
+        const newThumbs = [];
+        for (const oldPath of cached.thumbnails) {
+          newThumbs.push(path.join(newVideoThumbDir, path.basename(oldPath)));
+        }
+        cached.thumbnails = newThumbs; // update in-memory map with new absolute paths
+      }
+    }));
+  }
+  // Remove old .video-cull-thumbs if it's now empty
+  try {
+    const subdirs = await fs.readdir(oldThumbBase).catch(() => []);
+    for (const sub of subdirs) {
+      const subPath = path.join(oldThumbBase, sub);
+      const files = await fs.readdir(subPath).catch(() => ['non-empty']);
+      if (files.length === 0) await fs.rmdir(subPath).catch(() => {});
+    }
+    const remaining = await fs.readdir(oldThumbBase).catch(() => ['non-empty']);
+    if (remaining.length === 0) await fs.rmdir(oldThumbBase).catch(() => {});
+  } catch { /* ignore */ }
 
   const videos = await scanDirectory(dirPath, includeSubfolders, (progress) => {
     mainWindow.webContents.send('scan-progress', progress);
   });
 
-  // Merge with cache: preserve status & existing thumbnails
+  // Merge with cache: preserve status, thumbnails, bookmarks from SQLite.
+  // Thumbnail paths are resolved to absolute here so the renderer can use them directly.
   const merged = videos.map((v) => {
-    const cached = cachedMap[v.id];
+    const cached = cachedMap.get(v.id);
     if (cached) {
       return {
         ...v,
-        status: cached.status || 'pending',
-        thumbnails: cached.thumbnails || [],
+        status: cached.status,
+        thumbnails: cached.thumbnails.map(thumbAbsolute),
         duplicateHash: cached.duplicateHash || v.duplicateHash,
-        metadataDate: cached.metadataDate || null,
-        bookmarks: cached.bookmarks || [],
+        metadataDate: cached.metadataDate ?? null,
+        bookmarks: cached.bookmarks,
       };
     }
     return { ...v, status: 'pending', thumbnails: [], metadataDate: null, bookmarks: [] };
   });
+
+  // Persist merged result with relative thumbnail paths so the DB is portable.
+  await cache.saveCacheChunked(db, merged.map(videoForDb));
 
   // Populate the known-paths whitelist for this scan session
   knownVideoPaths.clear();
@@ -409,7 +479,8 @@ ipcMain.handle('generate-thumbnails', async (_event, videos, dirPath) => {
     return true;
   });
 
-  const thumbDir = path.join(dirPath, THUMB_DIR);
+  // Thumbnails are written to the cache directory, not the video folder
+  const thumbDir = path.join(cacheRootDir, 'thumbs');
   await fs.mkdir(thumbDir, { recursive: true });
 
   let config = {};
@@ -461,7 +532,8 @@ ipcMain.handle('cancel-generation', async () => {
 ipcMain.handle('save-cache', async (event, dirPath, videos) => {
   if (!dirPath || typeof dirPath !== 'string') return false;
   try {
-    await saveCache(dirPath, videos);
+    const db = cache.openDb(dirPath, cacheRootDir);
+    await cache.saveCacheChunked(db, videos.map(videoForDb));
     return true;
   } catch (err) {
     log.error('[save-cache] Error saving cache:', err);
@@ -479,25 +551,26 @@ ipcMain.handle('clear-cache', async (event, dirPath) => {
   }
 
   cancelProcessing();
-  
+
+  // Collect video IDs before deleting the DB so we know which thumb dirs to remove
+  const db = cache.openDb(dirPath, cacheRootDir);
+  const videoIds = db.prepare('SELECT id FROM videos').all().map((r) => r.id);
+
+  cache.deleteDb(dirPath, cacheRootDir);
+
   try {
-    const cachePath = path.join(dirPath, CACHE_FILE);
-    await fs.unlink(cachePath);
-  } catch (err) {
-    // Ignore ENOENT
-  }
-  try {
-    const thumbDir = path.join(dirPath, THUMB_DIR);
-    const trashDir = path.join(dirPath, `${THUMB_DIR}_trash_${Date.now()}`);
-    
-    try {
-      await fs.rename(thumbDir, trashDir);
-      // Run deletion asynchronously in background so it doesn't block the UI
-      fs.rm(trashDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
-    } catch (renameErr) {
-      // Fallback
-      await fs.rm(thumbDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    }
+    const thumbCacheDir = path.join(cacheRootDir, 'thumbs');
+
+    // Delete each video's thumbnail subdirectory from the cache
+    const deletions = videoIds.map((id) =>
+      fs.rm(path.join(thumbCacheDir, id), { recursive: true, force: true }).catch(() => {})
+    );
+    await Promise.all(deletions);
+
+    // Also clean up any legacy .video-cull-thumbs in the video folder
+    const legacyThumbDir = path.join(dirPath, THUMB_DIR);
+    fs.rm(legacyThumbDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {});
+
     return true;
   } catch (err) {
     log.error('[clear-cache] Error clearing thumbs:', err);

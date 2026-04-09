@@ -2,6 +2,17 @@
 
 All notable changes to Video Cull will be documented here.
 
+## [1.4.0] - 2026-04-10
+
+### Changed
+- **Cache Architecture** — migrated legacy JSON caching system to robust local SQLite implementation (`better-sqlite3`), dramatically improving read/write reliability and speed for massive folders.
+- **Data Durability** — database operations are now fully atomic and correctly handle concurrent thread execution to prevent UI freezes.
+- **Accurate Durations** — previously missing duration stats have been fixed as a side effect of the migration, pulling directly from FFprobe.
+
+### Migration
+- **Auto-migration** — existing `.video-cull-cache.json` files are automatically ingested and transitioned to `.db` on launch.
+- **Status Preservation** — review status and bookmarks are maintained precisely; thumbnail data is transparently relocated without loss.
+
 ## [1.3.0] - 2026-04-09
 
 ### Changed
