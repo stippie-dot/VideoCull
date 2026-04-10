@@ -2,16 +2,11 @@
 
 All notable changes to Video Cull will be documented here.
 
-## [1.4.1-alpha.1] - 2026-04-10
-
-### Fixed
-- **Cache persistence** — SQLite databases and thumbnails were being silently wiped on every app restart because the cache directory (`userData/cache`) collided with Electron's internal HTTP cache. Moved to `userData/video-cache`.
-- **Thumbnail records lost on rescan** — `INSERT OR REPLACE` in SQLite triggers `ON DELETE CASCADE`, destroying thumbnail records on every scan even when not intended. Switched to `ON CONFLICT DO UPDATE` (true in-place upsert, no cascade).
-- **Thumbnail migration skipped** — filesystem migration from `.video-cull-thumbs` to the cache dir was gated on DB records existing, so it silently no-ops after a JSON→SQLite migration (which skips thumbnails). Now checks the filesystem directly.
-- **Thumbnails stored flat** — all folders' thumbnails were written to a single `thumbs/` directory. Now organised per-folder as `thumbs/<folder-name>/` matching the DB filename.
-- **`saveCacheChunked` never called** — bulk saves in the initial scan used the blocking single-transaction path instead of the chunked async path.
-
 ## [1.4.0] - 2026-04-10
+
+Final stable release for the SQLite migration track.
+This section is cumulative and includes all changes between `v1.3.0` and `v1.4.0`
+(including `v1.4.0-alpha.1` and `v1.4.0-alpha.2`).
 
 ### Added
 - **SQLite cache layer** — migrated from JSON to `better-sqlite3` with per-folder database files and a dedicated cache module.
@@ -28,6 +23,7 @@ All notable changes to Video Cull will be documented here.
 - **Cache wipe on restart** — resolved DB/thumb data loss caused by writing into Electron's internal cache area.
 - **Cascade thumbnail loss on upsert** — replaced destructive replace behavior with safe `ON CONFLICT DO UPDATE` upserts.
 - **Missed thumbnail migration path** — migration now checks filesystem state directly and supports cross-device move fallback.
+- **Chunked path bypass bug** — ensured bulk initial scan saves use the chunked cache path (`saveCacheChunked`) instead of the blocking monolithic path.
 - **Write amplification during thumbnail generation** — store now saves only changed videos (not whole arrays) for thumbnail/status/bookmark/undo updates.
 - **Transient save failures** — added a retry queue for partial saves with race-safe token reconciliation.
 - **Duration persistence on rescan** — cached duration now survives rescans when thumbnails already exist.
@@ -39,6 +35,25 @@ All notable changes to Video Cull will be documented here.
 
 ### Migration
 - **Automatic transition** — old JSON cache files are imported and removed; durations/thumbnails are regenerated or merged from current cache/scan state as applicable.
+
+## [1.4.0-alpha.2] - 2026-04-10
+
+### Fixed
+- **Cache persistence** — SQLite databases and thumbnails were being silently wiped on every app restart because the cache directory (`userData/cache`) collided with Electron's internal HTTP cache. Moved to `userData/video-cache`.
+- **Thumbnail records lost on rescan** — `INSERT OR REPLACE` in SQLite triggers `ON DELETE CASCADE`, destroying thumbnail records on every scan even when not intended. Switched to `ON CONFLICT DO UPDATE` (true in-place upsert, no cascade).
+- **Thumbnail migration skipped** — filesystem migration from `.video-cull-thumbs` to the cache dir was gated on DB records existing, so it silently no-ops after a JSON→SQLite migration (which skips thumbnails). Now checks the filesystem directly.
+- **Thumbnails stored flat** — all folders' thumbnails were written to a single `thumbs/` directory. Now organised per-folder as `thumbs/<folder-name>/` matching the DB filename.
+- **`saveCacheChunked` never called** — bulk saves in the initial scan used the blocking single-transaction path instead of the chunked async path.
+
+## [1.4.0-alpha.1] - 2026-04-10
+
+### Added
+- **Initial SQLite migration** — replaced JSON caching with SQLite (`better-sqlite3`) and introduced per-folder DB cache files.
+- **Legacy import path** — first-run migration for existing JSON cache data into SQLite.
+
+### Changed
+- **Cache architecture foundation** — introduced centralized cache module (`electron/cache.js`) and DB lifecycle management.
+- **Thumbnail migration foundation** — moved thumbnail ownership into cache storage flow and updated scan merge behavior.
 
 ## [1.3.0] - 2026-04-09
 
