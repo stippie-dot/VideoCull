@@ -119,15 +119,22 @@ function closeDb() {
  */
 function loadCacheMap(db) {
   const rows = db.prepare('SELECT * FROM videos').all();
-  const thumbStmt = db.prepare(
-    'SELECT file_path FROM thumbnails WHERE video_id = ? ORDER BY idx'
-  );
+  const thumbRows = db.prepare(
+    'SELECT video_id, file_path FROM thumbnails ORDER BY video_id, idx'
+  ).all();
+
+  const thumbsByVideoId = new Map();
+  for (const row of thumbRows) {
+    const list = thumbsByVideoId.get(row.video_id) ?? [];
+    list.push(row.file_path);
+    thumbsByVideoId.set(row.video_id, list);
+  }
 
   const map = new Map();
   let withThumbs = 0;
   let nonPending = 0;
   for (const row of rows) {
-    const thumbs = thumbStmt.all(row.id).map((t) => t.file_path);
+    const thumbs = thumbsByVideoId.get(row.id) ?? [];
     if (thumbs.length > 0) withThumbs++;
     if (row.status && row.status !== 'pending') nonPending++;
     map.set(row.id, {

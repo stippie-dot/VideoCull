@@ -66,11 +66,6 @@ export default function Sidebar({ onRescan }: SidebarProps) {
       const results = await window.electronAPI.batchDelete(toDelete.map((v) => v.path));
       const succeeded = results.filter((r) => r.success).map((r) => r.path);
       useStore.getState().removeDeletedVideos(succeeded);
-
-      const dir = useStore.getState().directory;
-      if (dir) {
-        await window.electronAPI.saveCache(dir, useStore.getState().videos);
-      }
     } catch (err) {
       console.error('Delete failed:', err);
     }

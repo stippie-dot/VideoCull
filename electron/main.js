@@ -410,6 +410,7 @@ ipcMain.handle('scan-directory', async (_event, dirPath, includeSubfolders) => {
       return {
         ...v,
         status: cached.status,
+        durationSecs: cached.durationSecs ?? v.durationSecs,
         thumbnails: cached.thumbnails.map(thumbAbsolute),
         duplicateHash: cached.duplicateHash || v.duplicateHash,
         metadataDate: cached.metadataDate ?? null,
