@@ -10,31 +10,21 @@ When you're done, one command sends everything marked for deletion to the Recycl
 
 ---
 
-## Screenshots (Outdated as of V1.3.0)
+## Screenshots (v1.4.0)
 
-<table>
-<tr>
-  <td><img src="docs/screenshots/01-welcome.png" alt="Welcome screen"/></td>
-  <td><img src="docs/screenshots/02-grid-view-large.png" alt="Grid view"/></td>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/03-deletions-selected.png" alt="Deletions selected"/></td>
-  <td><img src="docs/screenshots/04-review-tumbnail.png" alt="Review mode — thumbnail strip"/></td>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/05-review-player.png" alt="Review mode — in-app player"/></td>
-  <td><img src="docs/screenshots/06-settings.png" alt="Settings — General"/></td>
-</tr>
-<tr>
-  <td colspan="2" align="center"><img src="docs/screenshots/07-settings-advanced.png" alt="Settings — Advanced" width="50%"/></td>
-</tr>
-</table>
+| Landing | Grid |
+|---|---|
+| ![Landing page](docs/screenshots/V1.4.0%20-%20Landing%20Page.png) | ![Grid view](docs/screenshots/V1.4.0%20-%20GridView.png) |
+
+| Review Mode |
+|---|
+| ![Review mode](docs/screenshots/v1.4.0%20-%20ReviewMode.png) |
 
 ---
 
 ## Download
 
-Grab the latest installer from the [Releases](https://github.com/stippie-dot/VideoCurl/releases) page.
+Grab the latest installer from the [Releases](https://github.com/stippie-dot/VideoCull/releases) page.
 
 Installs for the current user — no admin rights needed. On first launch Windows may show a SmartScreen prompt since the app isn't code-signed yet; click "Run anyway" to proceed.
 
@@ -71,12 +61,16 @@ Video Cull uses FFmpeg in the background to extract frames. A few things worth k
 - **Configurable frame count** — 1, 2, 4, 6, or 9 thumbnails per video (default: 6)
 - **Intro skip** — first frame is offset by a configurable delay (default: 3 seconds) to avoid black fades
 - **Parallel processing** — configurable concurrency: auto-detect, or set manually from 1 to 8 threads
-- **Cached** — thumbnails are stored in a hidden `.video-cull-thumbs` folder next to your media; already-processed videos are skipped on rescan
+- **Cached** — thumbnails are stored in the app cache directory (`userData/video-cache/thumbs`), so already-processed videos are skipped on rescan
 - **Hardware acceleration** — optional GPU-assisted decoding (beta, may not work with all formats)
 
 ### Cache & Progress
 
-Progress is saved in a `.video-cull-cache.json` file inside the scanned folder. Plug that drive into another machine with Video Cull installed — your keep/delete decisions are still there.
+Progress is saved in a per-folder SQLite database (`.db`) under `userData/video-cache`.
+
+- Existing `.video-cull-cache.json` files are migrated automatically on first scan
+- Status and bookmarks are preserved during migration
+- Thumbnail paths are managed in SQLite, with files stored under the cache thumbs directory
 
 ---
 
@@ -142,11 +136,11 @@ All other formats (`.avi`, `.wmv`, `.flv`, `.ts`, `.mts`, etc.) open automatical
 
 ## Building from Source
 
-Requires Node.js 18+. FFmpeg and FFprobe are bundled — no separate install needed.
+Requires Node.js 20+. FFmpeg and FFprobe are bundled — no separate install needed.
 
 ```bash
-git clone https://github.com/stippie-dot/videocurl.git
-cd videocurl
+git clone https://github.com/stippie-dot/VideoCull.git
+cd VideoCull
 npm install
 npm run dev
 ```
