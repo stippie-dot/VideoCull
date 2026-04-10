@@ -2,7 +2,7 @@
 
 All notable changes to Video Cull will be documented here.
 
-## [1.4.1] - 2026-04-10
+## [1.4.1-alpha.1] - 2026-04-10
 
 ### Fixed
 - **Cache persistence** — SQLite databases and thumbnails were being silently wiped on every app restart because the cache directory (`userData/cache`) collided with Electron's internal HTTP cache. Moved to `userData/video-cache`.
